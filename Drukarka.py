@@ -4,14 +4,15 @@ from OpenGL.GL import *
 from OpenGL.GLU import *
 
 # --- KONFIGURACJA ŚWIATŁA ---
-# Zwiększamy wartości Ambient, aby "wyciągnąć" szczegóły z cienia
 light_ambient = [0.5, 0.5, 0.5, 1.0]
 light_diffuse = [1.0, 1.0, 1.0, 1.0]
 
 class Drukarka:
     parts_config = {
         'Podstawa': ['VERTICES_Calosc', 'SURFACES_Calosc'],
-        'Oś X': ['VERTICES_osx', 'SURFACES_osx']
+        'Oś X': ['VERTICES_osx', 'SURFACES_osx'],
+        'Stół': ['VERTICES_bed', 'SURFACES_bed'],
+        'Ekstruder': ['VERTICES_Extruder', 'SURFACES_Extruder']
     }
 
     def __init__(self, part_name, color, pos=None, rot=None):
@@ -53,11 +54,35 @@ class Drukarka:
 
     VERTICES_osx = (
         (0,40,90), (100,40,90), (100,50,90), (0,50,90),
-        (0,40,100), (100,40,100), (100,50,100), (0,50,100),
+        (0,40,100), (100,40,100), (100,50,100), (0,50,100)
     )
    
     SURFACES_osx = (
         (0, 1, 2, 3), (0, 1, 5, 4), (3, 0, 4, 7), (3, 7, 6, 2), (2, 6, 5, 1), (4, 5, 6, 7)
+    )
+
+    VERTICES_bed = (
+        (15,15,15), (85,15,15), (85,85,15), (15,85,15),
+        (15,15,20), (85,15,20), (85,85,20), (15,85,20),
+        (45,40,10), (55,40,10), (55,60,10), (45,60,10),
+        (45,40,15), (55,40,15), (55,60,15), (45,60,15)
+    )
+    SURFACES_bed = (
+        (0, 1, 2, 3), (0, 1, 5, 4), (3, 0, 4, 7), (3, 7, 6, 2), (2, 6, 5, 1), (4, 5, 6, 7),
+        (8, 9, 10, 11), (8, 9, 13, 12), (11, 8, 12, 15), (11, 15, 14, 10), (10, 14, 13, 9), (12, 13, 14, 15)
+    )
+
+    VERTICES_Extruder = (
+        (-10, 50, 90),  (10, 50, 90),  (10, 70, 90),  (-10, 70, 90),
+        (-10, 50, 110), (10, 50, 110), (10, 70, 110), (-10, 70, 110),
+        (-5, 55, 90),    (5, 55, 90),    (5, 65, 90),    (-5, 65, 90),     
+        (0, 60, 82)
+    )
+
+    SURFACES_Extruder = (
+        (0, 1, 5, 4), (1, 2, 6, 5), (2, 3, 7, 6), (3, 0, 4, 7),
+        (4, 5, 6, 7),
+        (8, 9, 12, 12), (9, 10, 12, 12), (10, 11, 12, 12), (11, 8, 12, 12)
     )
 
     def draw(self, material):
@@ -95,21 +120,23 @@ def main():
     
     podstawa = Drukarka('Podstawa', [1.0, 0.0, 0.0])
     os_x = Drukarka('Oś X', [0.0, 0.0, 1.0])
+    bed = Drukarka('Stół', [0.0, 1.0, 0.0])
+    extruder = Drukarka('Ekstruder', [1.0, 1.0, 0.0])
     
-    # --- USTAWIENIA CZYTELNOŚCI ---
     glEnable(GL_DEPTH_TEST)
     glEnable(GL_LIGHTING)
     glEnable(GL_NORMALIZE)   
     glShadeModel(GL_SMOOTH) 
-    
-    # Globalne światło otoczenia - rozjaśnia wszystko równomiernie
     glLightModelfv(GL_LIGHT_MODEL_AMBIENT, [0.4, 0.4, 0.4, 1.0])
-    
-    # Konfiguracja światła nr 0
     glEnable(GL_LIGHT0)
     glLightfv(GL_LIGHT0, GL_AMBIENT, light_ambient)
     glLightfv(GL_LIGHT0, GL_DIFFUSE, light_diffuse)
     
+    # --- ZMIENNE KAMERY ---
+    rotate_x, rotate_y = -70, 150  # Początkowa rotacja
+    distance = -15                 # Początkowe przybliżenie
+    mouse_down = False             # Czy lewy przycisk myszy jest wciśnięty
+
     clock = pygame.time.Clock()
     
     while True:
@@ -117,26 +144,35 @@ def main():
             if event.type == pygame.QUIT:
                 pygame.quit()
                 return
+            
+            # Obsługa myszy
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                if event.button == 1: mouse_down = True  # Lewy przycisk
+                if event.button == 4: distance += 1.0    # Scroll w górę (przybliż)
+                if event.button == 5: distance -= 1.0    # Scroll w dół (oddal)
+            
+            elif event.type == pygame.MOUSEBUTTONUP:
+                if event.button == 1: mouse_down = False
+            
+            elif event.type == pygame.MOUSEMOTION:
+                if mouse_down:
+                    dx, dy = event.rel
+                    rotate_y += dx  # Obrót wokół osi Z (horyzontalnie)
+                    rotate_x += dy  # Obrót góra/dół
 
         keys = pygame.key.get_pressed()
-        # Strzałka w górę: ruszaj, jeśli nie przekroczono GÓRNEGO limitu
-        if keys[K_UP] and os_x.pos[2] < 20:
-            os_x.pos[2] += 2.0 
+        if keys[K_UP] and os_x.pos[2] < 20: os_x.pos[2] += 2.0 
+        if keys[K_DOWN] and os_x.pos[2] > -70: os_x.pos[2] -= 2.0
 
-        # Strzałka w dół: ruszaj, jeśli nie przekroczono DOLNEGO limitu
-        if keys[K_DOWN] and os_x.pos[2] > -70:
-            os_x.pos[2] -= 2.0
-
-        glClearColor(0.15, 0.15, 0.15, 1.0) # Ciemnoszare tło dla lepszego kontrastu
+        glClearColor(0.15, 0.15, 0.15, 1.0)
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
         glLoadIdentity()
         
-        # Kamera
-        glTranslatef(0, -2, -15)
-        glRotatef(-70, 1, 0, 0) # Lekki kąt dla lepszej perspektywy 3D
-        glRotatef(150, 0, 0, 1) 
+        # --- ZASTOSOWANIE TRANSFORMACJI KAMERY ---
+        glTranslatef(0, 0, distance)  # Przybliżenie
+        glRotatef(rotate_x, 1, 0, 0)  # Obrót góra/dół
+        glRotatef(rotate_y, 0, 0, 1)  # Obrót 360 wokół drukarki
 
-        # Światło podążające za kamerą (zawsze oświetla to, na co patrzymy)
         glLightfv(GL_LIGHT0, GL_POSITION, [0, 0, 10, 1])
 
         glPushMatrix()
@@ -144,8 +180,15 @@ def main():
         glTranslatef(-50, -50, -5) 
         
         podstawa.draw(materials['red'])
-        os_x.draw(materials['blue'])
         
+        # Przesunięcie ekstrudera wraz z osią X
+        glPushMatrix()
+        glTranslatef(0, 0, os_x.pos[2])
+        os_x.draw(materials['blue'])
+        extruder.draw(materials['blue'])
+        glPopMatrix()
+        
+        bed.draw(materials['blue'])
         glPopMatrix()
         
         pygame.display.flip()
