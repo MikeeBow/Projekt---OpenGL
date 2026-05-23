@@ -9,8 +9,7 @@ light_diffuse = [1.0, 1.0, 1.0, 1.0]
 
 class Drukarka:
     parts_config = {
-        'Podstawa': ['VERTICES_Calosc', 'SURFACES_Podstawa'],
-        'Rama': ['VERTICES_Calosc', 'SURFACES_Rama'],          # <--- NOWA CZĘŚĆ
+        'Rama': ['VERTICES_Calosc', 'SURFACES_Rama'], # Połączona podstawa i rama
         'Oś X': ['VERTICES_osx', 'SURFACES_osx'],
         'Stół': ['VERTICES_bed', 'SURFACES_bed'],
         'Ekstruder': ['VERTICES_Extruder', 'SURFACES_Extruder']
@@ -38,18 +37,15 @@ class Drukarka:
         (45,10,10), (55,10,10), (55,90,10), (45,90,10)
     )
 
-    SURFACES_Podstawa = (
+    SURFACES_Rama = (
         # Płaski dół drukarki i szyna na stół
         (0, 1, 5, 4), (1, 2, 6, 5), (2, 3, 7, 6), (3, 0, 4, 7),
         (4, 5, 9, 8), (5, 6, 10, 9), (6, 7, 11, 10), (7, 4, 8, 11),
         (0, 1, 13, 12), (1, 2, 14, 13), (2, 3, 15, 14), (3, 0, 12, 15),
         (8, 9, 13, 12), (9, 10, 14, 13), (10, 11, 15, 14), (11, 8, 12, 15),
         (40, 41, 42, 43), (40, 41, 45, 44), (43, 40, 44, 47), 
-        (43, 47, 46, 42), (42, 46, 45, 41), (44, 45, 46, 47)
-    )
-
-    SURFACES_Rama = (
-        # Pionowe słupy i górna belka (teraz będą osobnym obiektem)
+        (43, 47, 46, 42), (42, 46, 45, 41), (44, 45, 46, 47),
+        # Pionowe słupy i górna belka
         (16, 17, 18, 19), (16, 17, 21, 20), (19, 16, 20, 23), 
         (19, 23, 22, 18), (18, 22, 21, 17), (20, 21, 22, 23),
         (24, 25, 26, 27), (24, 25, 29, 28), (27, 24, 28, 31), 
@@ -57,6 +53,7 @@ class Drukarka:
         (32, 33, 34, 35), (32, 33, 37, 36), (35, 32, 36, 39), 
         (35, 39, 38, 34), (34, 38, 37, 33), (36, 37, 38, 39)
     )
+    
     VERTICES_osx = (
         (0,40,90), (100,40,90), (100,50,90), (0,50,90),
         (0,40,100), (100,40,100), (100,50,100), (0,50,100)
@@ -126,7 +123,7 @@ def main():
     gluPerspective(45, (display[0]/display[1]), 0.1, 1000.0)
     glMatrixMode(GL_MODELVIEW)
     
-    podstawa = Drukarka('Podstawa', [1.0, 0.0, 0.0])
+    # Teraz rama to jeden obiekt łączący dół i słupy
     rama = Drukarka('Rama', [1.0, 0.0, 0.0])
     os_x = Drukarka('Oś X', [0.0, 0.0, 1.0])
     bed = Drukarka('Stół', [0.0, 1.0, 0.0])
@@ -138,7 +135,7 @@ def main():
     glShadeModel(GL_SMOOTH) 
     glLightModelfv(GL_LIGHT_MODEL_AMBIENT, [0.4, 0.4, 0.4, 1.0])
     glEnable(GL_LIGHT0)
-    glLightfv(GL_LIGHT0, GL_AMBIENT, light_ambient)
+    glAnalysePos = glLightfv(GL_LIGHT0, GL_AMBIENT, light_ambient)
     glLightfv(GL_LIGHT0, GL_DIFFUSE, light_diffuse)
     
     # --- ZMIENNE KAMERY ---
@@ -149,6 +146,53 @@ def main():
     tryb_sterowania = 1
     wydrukowane_sciezki = []   # Przechowuje gotowe linie
     aktualna_sciezka = []      # Przechowuje linię, którą właśnie drukujemy
+
+    # --- KONFIGURACJA AUTOMATYCZNEGO DRUKU KOSTKI ---
+    auto_drukowanie = False
+    auto_indeks_punktu = 0
+    
+    # --- AUTOMATYCZNY GENERATOR PEŁNEJ KOSTKI ---
+    punkty_kostki = []
+    
+   # Parametry kostki 
+    start_x = 40.0
+    start_y = -10.0
+    szerokosc = 20.0  # Rozmiar X
+    dlugosc = 20.0    # Rozmiar Y
+    
+    odstep_linii = 0.5  
+    liczba_warstw = 40 
+    skok_warstwy = 0.5 
+    # Generujemy warstwy od dołu do góry
+    for w in range(liczba_warstw):
+        # Obliczamy wysokość osi Z dla danej warstwy
+        # Startujemy od -62.0 (czyli realne Z dyszy = 20.0, idealnie na stole)
+        aktualne_z = -62.0 + (w * skok_warstwy)
+        
+        # 1. Rysujemy obrys warstwy (kwadrat)
+        punkty_kostki.append([start_x, start_y, aktualne_z])
+        punkty_kostki.append([start_x + szerokosc, start_y, aktualne_z])
+        punkty_kostki.append([start_x + szerokosc, start_y + dlugosc, aktualne_z])
+        punkty_kostki.append([start_x, start_y + dlugosc, aktualne_z])
+        punkty_kostki.append([start_x, start_y, aktualne_z]) # Zamknięcie obrysu
+        
+        # 2. Rysujemy wypełnienie (Zygzak wewnątrz kwadratu)
+        # Przesuwamy się liniami wzdłuż osi Y
+        aktualne_y = start_y + odstep_linii
+        kierunek_x = True # Zmienna do sterowania ruchem lewo/prawo
+        
+        while aktualne_y < (start_y + dlugosc):
+            if kierunek_x:
+                # Linia w prawo
+                punkty_kostki.append([start_x + odstep_linii, aktualne_y, aktualne_z])
+                punkty_kostki.append([start_x + szerokosc - odstep_linii, aktualne_y, aktualne_z])
+            else:
+                # Linia w lewo
+                punkty_kostki.append([start_x + szerokosc - odstep_linii, aktualne_y, aktualne_z])
+                punkty_kostki.append([start_x + odstep_linii, aktualne_y, aktualne_z])
+            
+            aktualne_y += odstep_linii
+            kierunek_x = not kierunek_x # Zmiana kierunku dla następnej linii
 
     clock = pygame.time.Clock()
     
@@ -178,74 +222,158 @@ def main():
         # Wybór trybu
         if keys[K_1]: tryb_sterowania = 1
         if keys[K_2]: tryb_sterowania = 2
+        
+        # Uruchomienie autodruku klawiszem 4
+        if keys[K_4] and not auto_drukowanie:
+            auto_drukowanie = True
+            auto_indeks_punktu = 0
+            # Teleportujemy drukarkę do punktu startowego, żeby zaczęła od czystego miejsca
+            extruder.pos[0] = punkty_kostki[0][0]
+            bed.pos[1] = punkty_kostki[0][1]
+            os_x.pos[2] = punkty_kostki[0][2]
 
         # Ruch belki w pionie (Z) zostawiamy stale pod strzałkami GÓRA/DÓŁ
-        if keys[K_UP] and os_x.pos[2] < 20: os_x.pos[2] += 2.0 
-        if keys[K_DOWN] and os_x.pos[2] > -70: os_x.pos[2] -= 2.0
+        if keys[K_UP] and os_x.pos[2] < 20: os_x.pos[2] += 0.5 
+        if keys[K_DOWN] and os_x.pos[2] > -70: os_x.pos[2] -= 0.5
 
         # Ruch na boki pod strzałkami LEWO/PRAWO zależy od trybu:
         if tryb_sterowania == 1:
             # Ruch ekstrudera wzdłuż belki (oś X)
-            if keys[K_LEFT] and extruder.pos[0] > 10: extruder.pos[0] -= 2.0
-            if keys[K_RIGHT] and extruder.pos[0] < 90: extruder.pos[0] += 2.0
-
-                # --- MECHANIKA DRUKOWANIA (pod Spacją) ---
-            if keys[K_SPACE]:
-                # Czubek dyszy w Twoim modelu ma lokalne współrzędne (0, 60, 82)
-                # Dodajemy do tego aktualne przesunięcie (pos) całego ekstrudera
-                pozycja_dyszy = (
-                    extruder.pos[0] + 0, 
-                    extruder.pos[1] + 60, 
-                    extruder.pos[2] + 82
-                )
-                
-                if not aktualna_sciezka:
-                    aktualna_sciezka.append(pozycja_dyszy)
-                else:
-                    # Dodajemy nowy punkt tylko, jeśli ekstruder trochę się przesunął
-                    ostatni_punkt = aktualna_sciezka[-1]
-                    dystans = (pozycja_dyszy[0] - ostatni_punkt[0])**2 + \
-                            (pozycja_dyszy[1] - ostatni_punkt[1])**2 + \
-                            (pozycja_dyszy[2] - ostatni_punkt[2])**2
-                    if dystans > 0.5:  # Zabezpiecza przed generowaniem tysięcy punktów w miejscu
-                        aktualna_sciezka.append(pozycja_dyszy)
-            else:
-                # Jeśli puszczasz Spację, zamykamy aktualną ścieżkę i dodajemy do gotowych
-                if aktualna_sciezka:
-                    wydrukowane_sciezki.append(aktualna_sciezka)
-                    aktualna_sciezka = []
+            if keys[K_LEFT] and extruder.pos[0] > 10: extruder.pos[0] -= 0.5
+            if keys[K_RIGHT] and extruder.pos[0] < 90: extruder.pos[0] += 0.5
             
         elif tryb_sterowania == 2:
-            # Ruch belki w głąb / do przodu (oś Y)
-            # Używamy limitów -40 i 50, żeby belka nie wyjechała poza ramy drukarki
-            if keys[K_LEFT] and os_x.pos[1] > -40: os_x.pos[1] -= 2.0
-            if keys[K_RIGHT] and os_x.pos[1] < 50: os_x.pos[1] += 2.0
+            # Ruch stołu (bed) w głąb / do przodu (oś Y)
+            if keys[K_LEFT] and bed.pos[1] > -35: bed.pos[1] -= 0.5
+            if keys[K_RIGHT] and bed.pos[1] < 35: bed.pos[1] += 0.5
 
-            # --- MECHANIKA DRUKOWANIA (pod Spacją) ---
-            if keys[K_SPACE]:
-                # Czubek dyszy w Twoim modelu ma lokalne współrzędne (0, 60, 82)
-                # Dodajemy do tego aktualne przesunięcie (pos) całego ekstrudera
-                pozycja_dyszy = (
-                    extruder.pos[0] + 0, 
-                    extruder.pos[1] + 60, 
-                    extruder.pos[2] + 82
+        # --- LOGIKA AUTOMATYCZNEGO DRUKU ---
+        if auto_drukowanie:
+            cel = punkty_kostki[auto_indeks_punktu]
+            predkosc = 2 # Prędkość druku (im mniejsza, tym dokładniejszy druk)
+            
+            # Flagi informujące, czy dana oś dotarła do celu
+            dotarl_x = False
+            dotarl_y = False
+            dotarl_z = False
+            
+            # Ruch osi X (Ekstruder)
+            if abs(extruder.pos[0] - cel[0]) <= predkosc:
+                extruder.pos[0] = cel[0]
+                dotarl_x = True
+            else:
+                extruder.pos[0] += predkosc if extruder.pos[0] < cel[0] else -predkosc
+                
+            # Ruch osi Y (Stół)
+            if abs(bed.pos[1] - cel[1]) <= predkosc:
+                bed.pos[1] = cel[1]
+                dotarl_y = True
+            else:
+                bed.pos[1] += predkosc if bed.pos[1] < cel[1] else -predkosc
+                
+            # Ruch osi Z (Belka osi X)
+            if abs(os_x.pos[2] - cel[2]) <= predkosc:
+                os_x.pos[2] = cel[2]
+                dotarl_z = True
+            else:
+                os_x.pos[2] += predkosc if os_x.pos[2] < cel[2] else -predkosc
+                
+            # Jeśli wszystkie osie dotarły do aktualnego punktu, przechodzimy do następnego
+            if dotarl_x and dotarl_y and dotarl_z:
+                auto_indeks_punktu += 1
+                if auto_indeks_punktu >= len(punkty_kostki):
+                    # Koniec drukowania! Szczęśliwy finał
+                    auto_drukowanie = False
+                    if aktualna_sciezka:
+                        wydrukowane_sciezki.append(aktualna_sciezka)
+                        aktualna_sciezka = []
+
+
+# --- MECHANIKA DRUKOWANIA Z OGRANICZENIEM DO STOŁU (WERSJA V3 - HACZYK W DÓŁ) ---
+        if keys[K_SPACE] or auto_drukowanie:
+            # 1. Obliczamy pozycję dyszy względem świata 3D
+            pozycja_dyszy_swiat_x = extruder.pos[0] + 0.0
+            pozycja_dyszy_swiat_y = 60.0  
+            pozycja_dyszy_swiat_z = extruder.pos[2] + 82.0  
+
+            # 2. Aktualne, ruchome granice stołu w świecie 3D
+            stol_min_x = 15.0
+            stol_max_x = 85.0
+            stol_min_y = 15.0 + bed.pos[1]
+            stol_max_y = 85.0 + bed.pos[1]
+            stol_poziom_z = 20.0  
+
+            # 3. Sprawdzamy, czy dysza jest w rzucie z góry nad stołem
+            nad_stolem = (stol_min_x <= pozycja_dyszy_swiat_x <= stol_max_x) and \
+                         (stol_min_y <= pozycja_dyszy_swiat_y <= stol_max_y)
+
+            # 4. Pierwsza warstwa bezpośrednio na stole
+            na_powierzchni_stolu = nad_stolem and (abs(pozycja_dyszy_swiat_z - stol_poziom_z) <= 1.5)
+
+            # 5. Logika nadbudowy (nad plastikiem, obok plastiku, pod plastikiem)
+            w_powietrzu_ale_na_plastiku = False
+            w_powietrzu_ale_pod_plastikiem = False
+            
+            # Pozycję Y musimy przeliczyć na układ względny stołu, bo tak zapisane są punkty w pamięci
+            pozycja_wzgledna_y = 60.0 - bed.pos[1]
+            
+            # --- POPRAWKA: Sprawdzaj również aktualnie drukowaną ścieżkę ---
+            wszystkie_do_sprawdzenia = wydrukowane_sciezki.copy()
+            if aktualna_sciezka:
+                wszystkie_do_sprawdzenia.append(aktualna_sciezka)
+
+            for sciezka in wszystkie_do_sprawdzenia:
+                for pkt in sciezka:
+                    # Odległości w osiach X, Y i Z między dyszą a sprawdzanym punktem z historii
+                    dx = pozycja_dyszy_swiat_x - pkt[0]
+                    dy = pozycja_wzgledna_y - pkt[1]
+                    dz = pozycja_dyszy_swiat_z - pkt[2]
+                    
+                    # WARUNEK A: Budowanie w górę (filar)
+                    if (dx**2 + dy**2) < 4.0 and (0.0 <= dz <= 4.5):
+                        w_powietrzu_ale_na_plastiku = True
+                        break
+                        
+                    # WARUNEK B: Budowanie w bok (ramiona litery T)
+                    if abs(dz) <= 1.5 and (dx**2 + dy**2) < 9.0:
+                        w_powietrzu_ale_na_plastiku = True
+                        break
+
+                    # WARUNEK C: Budowanie w dół (Haczyk pod plastikiem)
+                    # Sprawdzamy czy dysza jest TUŻ POD istniejącym punktem (dz jest ujemne, np. od -4.5 do 0.0)
+                    # i czy w osiach X/Y jesteśmy idealnie pod tą linią
+                    if (dx**2 + dy**2) < 4.0 and (-4.5 <= dz <= 0.0):
+                        w_powietrzu_ale_pod_plastikiem = True
+                        break
+                if w_powietrzu_ale_na_plastiku or w_powietrzu_ale_pod_plastikiem:
+                    break
+
+            # 6. Decyzja o drukowaniu:
+            # Zezwalamy jeśli: jesteśmy na stole LUB nad plastikiem LUB pod plastikiem (wtedy stół nas nie obchodzi!)
+            if na_powierzchni_stolu or w_powietrzu_ale_na_plastiku or w_powietrzu_ale_pod_plastikiem:
+                pozycja_dyszy_wzgledna = (
+                    pozycja_dyszy_swiat_x,
+                    pozycja_wzgledna_y,
+                    pozycja_dyszy_swiat_z
                 )
                 
                 if not aktualna_sciezka:
-                    aktualna_sciezka.append(pozycja_dyszy)
+                    aktualna_sciezka.append(pozycja_dyszy_wzgledna)
                 else:
-                    # Dodajemy nowy punkt tylko, jeśli ekstruder trochę się przesunął
                     ostatni_punkt = aktualna_sciezka[-1]
-                    dystans = (pozycja_dyszy[0] - ostatni_punkt[0])**2 + \
-                            (pozycja_dyszy[1] - ostatni_punkt[1])**2 + \
-                            (pozycja_dyszy[2] - ostatni_punkt[2])**2
-                    if dystans > 0.5:  # Zabezpiecza przed generowaniem tysięcy punktów w miejscu
-                        aktualna_sciezka.append(pozycja_dyszy)
+                    dystans = (pozycja_dyszy_wzgledna[0] - ostatni_punkt[0])**2 + \
+                              (pozycja_dyszy_wzgledna[1] - ostatni_punkt[1])**2 + \
+                              (pozycja_dyszy_wzgledna[2] - ostatni_punkt[2])**2
+                    if dystans > 0.5:
+                        aktualna_sciezka.append(pozycja_dyszy_wzgledna)
             else:
-                # Jeśli puszczasz Spację, zamykamy aktualną ścieżkę i dodajemy do gotowych
                 if aktualna_sciezka:
                     wydrukowane_sciezki.append(aktualna_sciezka)
                     aktualna_sciezka = []
+        else:
+            if aktualna_sciezka:
+                wydrukowane_sciezki.append(aktualna_sciezka)
+                aktualna_sciezka = []
 
         glClearColor(0.15, 0.15, 0.15, 1.0)
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
@@ -262,40 +390,40 @@ def main():
         glScalef(0.05, 0.05, 0.05)
         glTranslatef(-50, -50, -5) 
         
-        # Rysowanie nieruchomej podstawy
-        podstawa.draw(materials['red'])
-        
         # --- SYNCHRONIZACJA RUCHOMYCH CZĘŚCI ---
         extruder.pos[2] = os_x.pos[2]  # Z - wysokość (razem z osią X)
-        extruder.pos[1] = os_x.pos[1]  # Y - głębokość ekstrudera (razem z osią X)
-        rama.pos[1]     = os_x.pos[1]  # Y - głębokość całej Ramy (razem z osią X)
+        # Zarówno os_x, jak i extruder w osi Y stoją sztywno (Y=0), bo rusza się stół!
+        os_x.pos[1] = 0.0
+        extruder.pos[1] = 0.0
         
-        # Rysowanie ruchomych części
+        # Rysowanie obiektów
         rama.draw(materials['red'])
         os_x.draw(materials['blue'])
         extruder.draw(materials['blue'])
-        
-        # Rysowanie stołu
         bed.draw(materials['blue'])
 
         # --- RYSOWANIE FILAMENTU ---
-        glDisable(GL_LIGHTING)  # Wyłączamy światło na chwilę dla filamentu
-        glLineWidth(4.0)        # Grubość ścieżki
-        glColor3f(1.0, 1.0, 1.0) # Kolor filamentu (biały)
+        glDisable(GL_LIGHTING)  
+        glLineWidth(4.0)        
+        glColor3f(1.0, 1.0, 1.0) 
 
-        # Tworzymy pełną listę ścieżek do narysowania
         wszystkie_sciezki = wydrukowane_sciezki.copy()
         if aktualna_sciezka:
             wszystkie_sciezki.append(aktualna_sciezka)
 
-        # Rysujemy każdą ścieżkę jako GL_LINE_STRIP (łączone linie)
+        # Kluczowy moment: przesuwamy rysowanie linii dokładnie tak samo jak stół,
+        # dzięki czemu linie przesuwają się razem z nim w osi Y!
+        glPushMatrix()
+        glTranslatef(0.0, bed.pos[1], 0.0)
+
         for sciezka in wszystkie_sciezki:
             glBegin(GL_LINE_STRIP)
             for punkt in sciezka:
                 glVertex3fv(punkt)
             glEnd()
             
-        glEnable(GL_LIGHTING)   # Włączamy światło z powrotem dla reszty modelu
+        glPopMatrix() # Cofnięcie przesunięcia stołu dla linii
+        glEnable(GL_LIGHTING)   
         
         glPopMatrix() # To zamyka głównego glPushMatrix
         
