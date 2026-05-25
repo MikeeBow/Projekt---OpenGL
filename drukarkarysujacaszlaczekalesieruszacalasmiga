@@ -115,6 +115,7 @@ materials = {
 }
 
 def main():
+    #utworzenie i podanie parametrów okna
     pygame.init()
     display = (1200, 800)
     pygame.display.set_mode(display, DOUBLEBUF | OPENGL)
@@ -123,19 +124,20 @@ def main():
     gluPerspective(45, (display[0]/display[1]), 0.1, 1000.0)
     glMatrixMode(GL_MODELVIEW)
     
-    # Teraz rama to jeden obiekt łączący dół i słupy
+    # stworzenie ruchomych części drukarki 
     rama = Drukarka('Rama', [1.0, 0.0, 0.0])
     os_x = Drukarka('Oś X', [0.0, 0.0, 1.0])
     bed = Drukarka('Stół', [0.0, 1.0, 0.0])
     extruder = Drukarka('Ekstruder', [1.0, 1.0, 0.0])
     
+    #inicjalizacja OpenGl
     glEnable(GL_DEPTH_TEST)
     glEnable(GL_LIGHTING)
     glEnable(GL_NORMALIZE)   
     glShadeModel(GL_SMOOTH) 
     glLightModelfv(GL_LIGHT_MODEL_AMBIENT, [0.4, 0.4, 0.4, 1.0])
     glEnable(GL_LIGHT0)
-    glAnalysePos = glLightfv(GL_LIGHT0, GL_AMBIENT, light_ambient)
+    glLightfv(GL_LIGHT0, GL_AMBIENT, light_ambient)
     glLightfv(GL_LIGHT0, GL_DIFFUSE, light_diffuse)
     
     # --- ZMIENNE KAMERY ---
@@ -151,6 +153,8 @@ def main():
     auto_drukowanie = False
     auto_indeks_punktu = 0
     
+
+
     # --- AUTOMATYCZNY GENERATOR PEŁNEJ KOSTKI ---
     punkty_kostki = []
     
@@ -249,8 +253,8 @@ def main():
 
         # --- LOGIKA AUTOMATYCZNEGO DRUKU ---
         if auto_drukowanie:
-            cel = punkty_kostki[auto_indeks_punktu]
-            predkosc = 2 # Prędkość druku (im mniejsza, tym dokładniejszy druk)
+            cel = punkty_kostki[auto_indeks_punktu] # kolejne punkty do których ma zmierzać dysza
+            predkosc = 2 # prędkość druku 
             
             # Flagi informujące, czy dana oś dotarła do celu
             dotarl_x = False
@@ -258,7 +262,7 @@ def main():
             dotarl_z = False
             
             # Ruch osi X (Ekstruder)
-            if abs(extruder.pos[0] - cel[0]) <= predkosc:
+            if abs(extruder.pos[0] - cel[0]) <= predkosc: # jeżeli jesteśmy na osi X blisko celu, to zanczy mniejszy od prędkości automatycznie do niego przeskakujemy, w przeciwnym wypadku poruszamy się z prędkościa w kierunku celu tak samo dla osi Y i Z
                 extruder.pos[0] = cel[0]
                 dotarl_x = True
             else:
@@ -330,19 +334,19 @@ def main():
                     dz = pozycja_dyszy_swiat_z - pkt[2]
                     
                     # WARUNEK A: Budowanie w górę (filar)
-                    if (dx**2 + dy**2) < 4.0 and (0.0 <= dz <= 4.5):
+                    if (dx**2 + dy**2) < 2.0 and (0.0 <= dz <= 2.0):
                         w_powietrzu_ale_na_plastiku = True
                         break
                         
                     # WARUNEK B: Budowanie w bok (ramiona litery T)
-                    if abs(dz) <= 1.5 and (dx**2 + dy**2) < 9.0:
+                    if abs(dz) <= 1.5 and (dx**2 + dy**2) < 2.0:
                         w_powietrzu_ale_na_plastiku = True
                         break
 
                     # WARUNEK C: Budowanie w dół (Haczyk pod plastikiem)
                     # Sprawdzamy czy dysza jest TUŻ POD istniejącym punktem (dz jest ujemne, np. od -4.5 do 0.0)
                     # i czy w osiach X/Y jesteśmy idealnie pod tą linią
-                    if (dx**2 + dy**2) < 4.0 and (-4.5 <= dz <= 0.0):
+                    if (dx**2 + dy**2) < 2.0 and (-2.0 <= dz <= 0.0):
                         w_powietrzu_ale_pod_plastikiem = True
                         break
                 if w_powietrzu_ale_na_plastiku or w_powietrzu_ale_pod_plastikiem:
@@ -357,7 +361,7 @@ def main():
                     pozycja_dyszy_swiat_z
                 )
                 
-                if not aktualna_sciezka:
+                if not aktualna_sciezka:  #czy lista jest pusta? jeżeli tak to dodajemy aktualną pozycje dyszy
                     aktualna_sciezka.append(pozycja_dyszy_wzgledna)
                 else:
                     ostatni_punkt = aktualna_sciezka[-1]
