@@ -7,18 +7,30 @@ from OpenGL.GLU import *
 light_ambient = [0.5, 0.5, 0.5, 1.0]
 light_diffuse = [1.0, 1.0, 1.0, 1.0]
 
+# Funkcja pomocnicza do automatycznego obliczania wektorów normalnych (odbicia światła)
+def calculate_normal(v1, v2, v3):
+    u = [v2[0] - v1[0], v2[1] - v1[1], v2[2] - v1[2]]
+    v = [v3[0] - v1[0], v3[1] - v1[1], v3[2] - v1[2]]
+    nx = u[1] * v[2] - u[2] * v[1]
+    ny = u[2] * v[0] - u[0] * v[2]
+    nz = u[0] * v[1] - u[1] * v[0]
+    dlugosc = (nx**2 + ny**2 + nz**2)**0.5
+    if dlugosc == 0: return [0.0, 0.0, 1.0]
+    return [nx / dlugosc, ny / dlugosc, nz / dlugosc]
+
 class Drukarka:
     parts_config = {
-        'Rama': ['VERTICES_Calosc', 'SURFACES_Rama'], # Połączona podstawa i rama
+        'Rama': ['VERTICES_Calosc', 'SURFACES_Rama'], 
         'Oś X': ['VERTICES_osx', 'SURFACES_osx'],
         'Stół': ['VERTICES_bed', 'SURFACES_bed'],
         'Ekstruder': ['VERTICES_Extruder', 'SURFACES_Extruder']
     }
 
-    def __init__(self, part_name, color, pos=None, rot=None):
+    def __init__(self, part_name, texture_id, material=None, pos=None, rot=None):
         self.vertices = getattr(self, self.parts_config[part_name][0])
         self.surfaces = getattr(self, self.parts_config[part_name][1])
-        self.color = color
+        self.texture_id = texture_id  
+        self.material = material  
         self.pos = pos if pos else [0.0, 0.0, 0.0]
         self.rot = rot if rot else [0.0, 0.0, 0.0]
 
@@ -38,14 +50,12 @@ class Drukarka:
     )
 
     SURFACES_Rama = (
-        # Płaski dół drukarki i szyna na stół
         (0, 1, 5, 4), (1, 2, 6, 5), (2, 3, 7, 6), (3, 0, 4, 7),
         (4, 5, 9, 8), (5, 6, 10, 9), (6, 7, 11, 10), (7, 4, 8, 11),
         (0, 1, 13, 12), (1, 2, 14, 13), (2, 3, 15, 14), (3, 0, 12, 15),
         (8, 9, 13, 12), (9, 10, 14, 13), (10, 11, 15, 14), (11, 8, 12, 15),
         (40, 41, 42, 43), (40, 41, 45, 44), (43, 40, 44, 47), 
         (43, 47, 46, 42), (42, 46, 45, 41), (44, 45, 46, 47),
-        # Pionowe słupy i górna belka
         (16, 17, 18, 19), (16, 17, 21, 20), (19, 16, 20, 23), 
         (19, 23, 22, 18), (18, 22, 21, 17), (20, 21, 22, 23),
         (24, 25, 26, 27), (24, 25, 29, 28), (27, 24, 28, 31), 
@@ -55,8 +65,15 @@ class Drukarka:
     )
     
     VERTICES_osx = (
-        (0,40,90), (100,40,90), (100,50,90), (0,50,90),
-        (0,40,100), (100,40,100), (100,50,100), (0,50,100)
+        (0,35,88),
+        (100,35,88),
+        (100,55,88),
+        (0,55,88),
+
+        (0,35,102),
+        (100,35,102),
+        (100,55,102),
+        (0,55,102)
     )
    
     SURFACES_osx = (
@@ -77,60 +94,140 @@ class Drukarka:
     VERTICES_Extruder = (
         (-10, 50, 90),  (10, 50, 90),  (10, 70, 90),  (-10, 70, 90),
         (-10, 50, 110), (10, 50, 110), (10, 70, 110), (-10, 70, 110),
-        (-5, 55, 90),    (5, 55, 90),    (5, 65, 90),    (-5, 65, 90),     
+        (-5, 55, 90),    (5, 55, 90),    (5, 65, 90),    (-5, 65, 90),    
         (0, 60, 82)
     )
 
+    # POPRAWKA: Usunięto powtórzenia w trójkątach dla dyszy ekstrudera
     SURFACES_Extruder = (
         (0, 1, 5, 4), (1, 2, 6, 5), (2, 3, 7, 6), (3, 0, 4, 7),
         (4, 5, 6, 7),
-        (8, 9, 12, 8),   
-        (9, 10, 12, 9),  
-        (10, 11, 12, 10),
-        (11, 8, 12, 11)  
+        (8, 9, 12),   
+        (9, 10, 12),  
+        (10, 11, 12),
+        (11, 8, 12)  
     )
 
-    def draw(self, material):
-        glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, material['ambient'])
-        glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, material['diffuse'])
-        glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, material['specular'])
-        glMaterialf(GL_FRONT_AND_BACK, GL_SHININESS, material['shininess'])
-        
+    def draw(self):
         glPushMatrix()
         glTranslatef(*self.pos)
         glRotatef(self.rot[0], 1, 0, 0)
         glRotatef(self.rot[1], 0, 1, 0)
         glRotatef(self.rot[2], 0, 0, 1)
 
-        glBegin(GL_QUADS)
+        glDisable(GL_LIGHTING)
+
+        glEnable(GL_TEXTURE_2D)
+        glBindTexture(GL_TEXTURE_2D, self.texture_id)
+
+        # Tekstura ma być wyświetlana bez wpływu światła i koloru
+        glTexEnvi(
+            GL_TEXTURE_ENV,
+            GL_TEXTURE_ENV_MODE,
+            GL_REPLACE
+        )
+
+        glColor3f(1.0, 1.0, 1.0)
+
+        # Renderowanie ścian (czworokąty i trójkąty)
         for surface in self.surfaces:
-            for vertex in surface:
-                glVertex3fv(self.vertices[vertex])
-        glEnd()
+            if len(surface) == 4:
+                glBegin(GL_QUADS)
+                uv_coords = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
+                for i, vertex in enumerate(surface):
+                    glTexCoord2f(uv_coords[i][0], uv_coords[i][1])
+                    glVertex3fv(self.vertices[vertex])
+                glEnd()
+            elif len(surface) == 3:
+                glBegin(GL_TRIANGLES)
+                uv_coords = [(0.0, 0.0), (1.0, 0.0), (0.5, 1.0)]
+                for i, vertex in enumerate(surface):
+                    glTexCoord2f(uv_coords[i][0], uv_coords[i][1])
+                    glVertex3fv(self.vertices[vertex])
+                glEnd()
+
+        glDisable(GL_TEXTURE_2D)
+        
+        # 3. WŁĄCZAMY OŚWIETLENIE Z POWROTEM – aby nie popsuć rysowania innych rzeczy (np. filamentu)
+        glEnable(GL_LIGHTING)
+        
         glPopMatrix()
 
-materials = {
-    'red': {'ambient': [0.4, 0.1, 0.1, 1], 'diffuse': [0.9, 0.1, 0.1, 1], 'specular': [0.5,0.5,0.5,1], 'shininess': 32},
-    'blue': {'ambient': [0.1, 0.1, 0.4, 1], 'diffuse': [0.1, 0.1, 0.9, 1], 'specular': [0.5,0.5,0.5,1], 'shininess': 32}
-}
+
+def load_texture(filename):
+    texture_surface = pygame.image.load(filename)
+
+    print(filename)
+    print(texture_surface.get_bitsize())
+    print(texture_surface.get_masks())
+    texture_surface = pygame.image.load(filename)
+
+    # Konwersja do formatu RGB zgodnego z OpenGL
+    texture_surface = texture_surface.convert()
+
+    texture_data = pygame.image.tostring(texture_surface, "RGB", True)
+    width = texture_surface.get_width()
+    height = texture_surface.get_height()
+
+    tex_id = glGenTextures(1)
+    glBindTexture(GL_TEXTURE_2D, tex_id)
+
+    glTexEnvi(
+        GL_TEXTURE_ENV,
+        GL_TEXTURE_ENV_MODE,
+        GL_REPLACE
+    )
+    
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
+
+    # Wyświetlaj dokładnie kolory tekstury
+    glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE)
+
+    glTexImage2D(
+        GL_TEXTURE_2D,
+        0,
+        GL_RGB,
+        width,
+        height,
+        0,
+        GL_RGB,
+        GL_UNSIGNED_BYTE,
+        texture_data
+    )
+
+    return tex_id
+
+
+
 
 def main():
-    #utworzenie i podanie parametrów okna
     pygame.init()
     display = (1200, 800)
     pygame.display.set_mode(display, DOUBLEBUF | OPENGL)
+
+
+
+    tekstura_ekstrudera = load_texture("ekstruder.jpg")
     
     glMatrixMode(GL_PROJECTION)
     gluPerspective(45, (display[0]/display[1]), 0.1, 1000.0)
     glMatrixMode(GL_MODELVIEW)
+
+    tekstura_metalu = load_texture("metal.webp")
+    tekstura_plastiku = load_texture("plastik.jpg")
+    tekstura_belki=load_texture("osX.jpg")
     
-    # stworzenie ruchomych części drukarki 
-    rama = Drukarka('Rama', [1.0, 0.0, 0.0])
-    os_x = Drukarka('Oś X', [0.0, 0.0, 1.0])
-    bed = Drukarka('Stół', [0.0, 1.0, 0.0])
-    extruder = Drukarka('Ekstruder', [1.0, 1.0, 0.0])
     
-    #inicjalizacja OpenGl
+
+    rama = Drukarka('Rama', tekstura_metalu)
+    os_x = Drukarka('Oś X', tekstura_belki)
+    bed = Drukarka('Stół', tekstura_plastiku)
+    extruder = Drukarka('Ekstruder', tekstura_ekstrudera)
+    
     glEnable(GL_DEPTH_TEST)
     glEnable(GL_LIGHTING)
     glEnable(GL_NORMALIZE)   
@@ -140,63 +237,48 @@ def main():
     glLightfv(GL_LIGHT0, GL_AMBIENT, light_ambient)
     glLightfv(GL_LIGHT0, GL_DIFFUSE, light_diffuse)
     
-    # --- ZMIENNE KAMERY ---
-    rotate_x, rotate_y = -70, 150  # Początkowa rotacja
-    distance = -15                 # Początkowe przybliżenie
-    mouse_down = False             # Czy lewy przycisk myszy jest wciśnięty
+    rotate_x, rotate_y = -70, 150  
+    distance = -35 
+    mouse_down = False             
 
     tryb_sterowania = 1
-    wydrukowane_sciezki = []   # Przechowuje gotowe linie
-    aktualna_sciezka = []      # Przechowuje linię, którą właśnie drukujemy
+    wydrukowane_sciezki = []   
+    aktualna_sciezka = []      
 
-    # --- KONFIGURACJA AUTOMATYCZNEGO DRUKU KOSTKI ---
     auto_drukowanie = False
     auto_indeks_punktu = 0
     
-
-
-    # --- AUTOMATYCZNY GENERATOR PEŁNEJ KOSTKI ---
     punkty_kostki = []
-    
-   # Parametry kostki 
     start_x = 40.0
     start_y = -10.0
-    szerokosc = 20.0  # Rozmiar X
-    dlugosc = 20.0    # Rozmiar Y
+    szerokosc = 20.0  
+    dlugosc = 20.0    
     
     odstep_linii = 0.5  
     liczba_warstw = 40 
     skok_warstwy = 0.5 
-    # Generujemy warstwy od dołu do góry
+    
     for w in range(liczba_warstw):
-        # Obliczamy wysokość osi Z dla danej warstwy
-        # Startujemy od -62.0 (czyli realne Z dyszy = 20.0, idealnie na stole)
         aktualne_z = -62.0 + (w * skok_warstwy)
-        
-        # 1. Rysujemy obrys warstwy (kwadrat)
         punkty_kostki.append([start_x, start_y, aktualne_z])
         punkty_kostki.append([start_x + szerokosc, start_y, aktualne_z])
         punkty_kostki.append([start_x + szerokosc, start_y + dlugosc, aktualne_z])
         punkty_kostki.append([start_x, start_y + dlugosc, aktualne_z])
-        punkty_kostki.append([start_x, start_y, aktualne_z]) # Zamknięcie obrysu
+        punkty_kostki.append([start_x, start_y, aktualne_z]) 
         
-        # 2. Rysujemy wypełnienie (Zygzak wewnątrz kwadratu)
-        # Przesuwamy się liniami wzdłuż osi Y
         aktualne_y = start_y + odstep_linii
-        kierunek_x = True # Zmienna do sterowania ruchem lewo/prawo
+        kierunek_x = True 
         
         while aktualne_y < (start_y + dlugosc):
             if kierunek_x:
-                # Linia w prawo
                 punkty_kostki.append([start_x + odstep_linii, aktualne_y, aktualne_z])
                 punkty_kostki.append([start_x + szerokosc - odstep_linii, aktualne_y, aktualne_z])
             else:
-                # Linia w lewo
                 punkty_kostki.append([start_x + szerokosc - odstep_linii, aktualne_y, aktualne_z])
                 punkty_kostki.append([start_x + odstep_linii, aktualne_y, aktualne_z])
             
             aktualne_y += odstep_linii
-            kierunek_x = not kierunek_x # Zmiana kierunku dla następnej linii
+            kierunek_x = not kierunek_x 
 
     clock = pygame.time.Clock()
     
@@ -206,11 +288,10 @@ def main():
                 pygame.quit()
                 return
             
-            # Obsługa myszy
             elif event.type == pygame.MOUSEBUTTONDOWN:
-                if event.button == 1: mouse_down = True  # Lewy przycisk
-                if event.button == 4: distance += 1.0    # Scroll w górę (przybliż)
-                if event.button == 5: distance -= 1.0    # Scroll w dół (oddal)
+                if event.button == 1: mouse_down = True  
+                if event.button == 4: distance += 1.0    
+                if event.button == 5: distance -= 1.0    
             
             elif event.type == pygame.MOUSEBUTTONUP:
                 if event.button == 1: mouse_down = False
@@ -218,142 +299,113 @@ def main():
             elif event.type == pygame.MOUSEMOTION:
                 if mouse_down:
                     dx, dy = event.rel
-                    rotate_y += dx  # Obrót wokół osi Z (horyzontalnie)
-                    rotate_x += dy  # Obrót góra/dół
+                    rotate_y += dx  
+                    rotate_x += dy  
 
         keys = pygame.key.get_pressed()
         
-        # Wybór trybu
         if keys[K_1]: tryb_sterowania = 1
         if keys[K_2]: tryb_sterowania = 2
         
-        # Uruchomienie autodruku klawiszem 4
         if keys[K_4] and not auto_drukowanie:
             auto_drukowanie = True
             auto_indeks_punktu = 0
-            # Teleportujemy drukarkę do punktu startowego, żeby zaczęła od czystego miejsca
             extruder.pos[0] = punkty_kostki[0][0]
             bed.pos[1] = punkty_kostki[0][1]
             os_x.pos[2] = punkty_kostki[0][2]
 
-        # Ruch belki w pionie (Z) zostawiamy stale pod strzałkami GÓRA/DÓŁ
-        if keys[K_UP] and os_x.pos[2] < 20: os_x.pos[2] += 0.5 
-        if keys[K_DOWN] and os_x.pos[2] > -70: os_x.pos[2] -= 0.5
+        if keys[K_UP] and os_x.pos[2] < 20: 
+            os_x.pos[2] += 0.5
+        if keys[K_DOWN] and os_x.pos[2] > -62.0: 
+            os_x.pos[2] -= 0.5
 
-        # Ruch na boki pod strzałkami LEWO/PRAWO zależy od trybu:
         if tryb_sterowania == 1:
-            # Ruch ekstrudera wzdłuż belki (oś X)
-            if keys[K_LEFT] and extruder.pos[0] > 10: extruder.pos[0] -= 0.5
-            if keys[K_RIGHT] and extruder.pos[0] < 90: extruder.pos[0] += 0.5
+            if keys[K_LEFT] and extruder.pos[0] > 20: extruder.pos[0] -= 0.5
+            if keys[K_RIGHT] and extruder.pos[0] < 80: extruder.pos[0] += 0.5
             
         elif tryb_sterowania == 2:
-            # Ruch stołu (bed) w głąb / do przodu (oś Y)
-            if keys[K_LEFT] and bed.pos[1] > -35: bed.pos[1] -= 0.5
-            if keys[K_RIGHT] and bed.pos[1] < 35: bed.pos[1] += 0.5
+            if keys[K_LEFT] and bed.pos[1] > -20: bed.pos[1] -= 0.5
+            if keys[K_RIGHT] and bed.pos[1] <  40: bed.pos[1] += 0.5
 
-        # --- LOGIKA AUTOMATYCZNEGO DRUKU ---
         if auto_drukowanie:
-            cel = punkty_kostki[auto_indeks_punktu] # kolejne punkty do których ma zmierzać dysza
-            predkosc = 2 # prędkość druku 
+            cel = punkty_kostki[auto_indeks_punktu] 
+            predkosc = 2 
             
-            # Flagi informujące, czy dana oś dotarła do celu
             dotarl_x = False
             dotarl_y = False
             dotarl_z = False
             
-            # Ruch osi X (Ekstruder)
-            if abs(extruder.pos[0] - cel[0]) <= predkosc: # jeżeli jesteśmy na osi X blisko celu, to zanczy mniejszy od prędkości automatycznie do niego przeskakujemy, w przeciwnym wypadku poruszamy się z prędkościa w kierunku celu tak samo dla osi Y i Z
+            if abs(extruder.pos[0] - cel[0]) <= predkosc: 
                 extruder.pos[0] = cel[0]
                 dotarl_x = True
             else:
                 extruder.pos[0] += predkosc if extruder.pos[0] < cel[0] else -predkosc
                 
-            # Ruch osi Y (Stół)
             if abs(bed.pos[1] - cel[1]) <= predkosc:
                 bed.pos[1] = cel[1]
                 dotarl_y = True
             else:
                 bed.pos[1] += predkosc if bed.pos[1] < cel[1] else -predkosc
                 
-            # Ruch osi Z (Belka osi X)
             if abs(os_x.pos[2] - cel[2]) <= predkosc:
                 os_x.pos[2] = cel[2]
                 dotarl_z = True
             else:
                 os_x.pos[2] += predkosc if os_x.pos[2] < cel[2] else -predkosc
                 
-            # Jeśli wszystkie osie dotarły do aktualnego punktu, przechodzimy do następnego
             if dotarl_x and dotarl_y and dotarl_z:
                 auto_indeks_punktu += 1
                 if auto_indeks_punktu >= len(punkty_kostki):
-                    # Koniec drukowania! Szczęśliwy finał
                     auto_drukowanie = False
                     if aktualna_sciezka:
                         wydrukowane_sciezki.append(aktualna_sciezka)
                         aktualna_sciezka = []
 
-
-# --- MECHANIKA DRUKOWANIA Z OGRANICZENIEM DO STOŁU (WERSJA V3 - HACZYK W DÓŁ) ---
         if keys[K_SPACE] or auto_drukowanie:
-            # 1. Obliczamy pozycję dyszy względem świata 3D
             pozycja_dyszy_swiat_x = extruder.pos[0] + 0.0
             pozycja_dyszy_swiat_y = 60.0  
             pozycja_dyszy_swiat_z = extruder.pos[2] + 82.0  
 
-            # 2. Aktualne, ruchome granice stołu w świecie 3D
             stol_min_x = 15.0
             stol_max_x = 85.0
             stol_min_y = 15.0 + bed.pos[1]
             stol_max_y = 85.0 + bed.pos[1]
             stol_poziom_z = 20.0  
 
-            # 3. Sprawdzamy, czy dysza jest w rzucie z góry nad stołem
             nad_stolem = (stol_min_x <= pozycja_dyszy_swiat_x <= stol_max_x) and \
                          (stol_min_y <= pozycja_dyszy_swiat_y <= stol_max_y)
 
-            # 4. Pierwsza warstwa bezpośrednio na stole
             na_powierzchni_stolu = nad_stolem and (abs(pozycja_dyszy_swiat_z - stol_poziom_z) <= 1.5)
 
-            # 5. Logika nadbudowy (nad plastikiem, obok plastiku, pod plastikiem)
             w_powietrzu_ale_na_plastiku = False
             w_powietrzu_ale_pod_plastikiem = False
             
-            # Pozycję Y musimy przeliczyć na układ względny stołu, bo tak zapisane są punkty w pamięci
             pozycja_wzgledna_y = 60.0 - bed.pos[1]
             
-            # --- POPRAWKA: Sprawdzaj również aktualnie drukowaną ścieżkę ---
             wszystkie_do_sprawdzenia = wydrukowane_sciezki.copy()
             if aktualna_sciezka:
                 wszystkie_do_sprawdzenia.append(aktualna_sciezka)
 
             for sciezka in wszystkie_do_sprawdzenia:
                 for pkt in sciezka:
-                    # Odległości w osiach X, Y i Z między dyszą a sprawdzanym punktem z historii
                     dx = pozycja_dyszy_swiat_x - pkt[0]
                     dy = pozycja_wzgledna_y - pkt[1]
                     dz = pozycja_dyszy_swiat_z - pkt[2]
                     
-                    # WARUNEK A: Budowanie w górę (filar)
                     if (dx**2 + dy**2) < 2.0 and (0.0 <= dz <= 2.0):
                         w_powietrzu_ale_na_plastiku = True
                         break
                         
-                    # WARUNEK B: Budowanie w bok (ramiona litery T)
                     if abs(dz) <= 1.5 and (dx**2 + dy**2) < 2.0:
                         w_powietrzu_ale_na_plastiku = True
                         break
 
-                    # WARUNEK C: Budowanie w dół (Haczyk pod plastikiem)
-                    # Sprawdzamy czy dysza jest TUŻ POD istniejącym punktem (dz jest ujemne, np. od -4.5 do 0.0)
-                    # i czy w osiach X/Y jesteśmy idealnie pod tą linią
                     if (dx**2 + dy**2) < 2.0 and (-2.0 <= dz <= 0.0):
                         w_powietrzu_ale_pod_plastikiem = True
                         break
                 if w_powietrzu_ale_na_plastiku or w_powietrzu_ale_pod_plastikiem:
                     break
 
-            # 6. Decyzja o drukowaniu:
-            # Zezwalamy jeśli: jesteśmy na stole LUB nad plastikiem LUB pod plastikiem (wtedy stół nas nie obchodzi!)
             if na_powierzchni_stolu or w_powietrzu_ale_na_plastiku or w_powietrzu_ale_pod_plastikiem:
                 pozycja_dyszy_wzgledna = (
                     pozycja_dyszy_swiat_x,
@@ -361,7 +413,7 @@ def main():
                     pozycja_dyszy_swiat_z
                 )
                 
-                if not aktualna_sciezka:  #czy lista jest pusta? jeżeli tak to dodajemy aktualną pozycje dyszy
+                if not aktualna_sciezka:  
                     aktualna_sciezka.append(pozycja_dyszy_wzgledna)
                 else:
                     ostatni_punkt = aktualna_sciezka[-1]
@@ -383,28 +435,24 @@ def main():
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
         glLoadIdentity()
         
-        # --- ZASTOSOWANIE TRANSFORMACJI KAMERY ---
-        glTranslatef(0, 0, distance)  # Przybliżenie
-        glRotatef(rotate_x, 1, 0, 0)  # Obrót góra/dół
-        glRotatef(rotate_y, 0, 0, 1)  # Obrót 360 wokół drukarki
+        glTranslatef(0, 0, distance)  
+        glRotatef(rotate_x, 1, 0, 0)  
+        glRotatef(rotate_y, 0, 0, 1)  
 
-        glLightfv(GL_LIGHT0, GL_POSITION, [0, 0, 10, 1])
+        glLightfv(GL_LIGHT0, GL_POSITION, [50.0, 50.0, 200.0, 1.0])
 
         glPushMatrix()
-        glScalef(0.05, 0.05, 0.05)
+        glScalef(0.1, 0.1, 0.1)
         glTranslatef(-50, -50, -5) 
         
-        # --- SYNCHRONIZACJA RUCHOMYCH CZĘŚCI ---
-        extruder.pos[2] = os_x.pos[2]  # Z - wysokość (razem z osią X)
-        # Zarówno os_x, jak i extruder w osi Y stoją sztywno (Y=0), bo rusza się stół!
+        extruder.pos[2] = os_x.pos[2]  
         os_x.pos[1] = 0.0
         extruder.pos[1] = 0.0
         
-        # Rysowanie obiektów
-        rama.draw(materials['red'])
-        os_x.draw(materials['blue'])
-        extruder.draw(materials['blue'])
-        bed.draw(materials['blue'])
+        rama.draw()
+        os_x.draw()
+        extruder.draw()
+        bed.draw()
 
         # --- RYSOWANIE FILAMENTU ---
         glDisable(GL_LIGHTING)  
@@ -415,8 +463,6 @@ def main():
         if aktualna_sciezka:
             wszystkie_sciezki.append(aktualna_sciezka)
 
-        # Kluczowy moment: przesuwamy rysowanie linii dokładnie tak samo jak stół,
-        # dzięki czemu linie przesuwają się razem z nim w osi Y!
         glPushMatrix()
         glTranslatef(0.0, bed.pos[1], 0.0)
 
@@ -426,10 +472,10 @@ def main():
                 glVertex3fv(punkt)
             glEnd()
             
-        glPopMatrix() # Cofnięcie przesunięcia stołu dla linii
-        glEnable(GL_LIGHTING)   
+        glPopMatrix() 
+        glEnable(GL_LIGHTING)  
         
-        glPopMatrix() # To zamyka głównego glPushMatrix
+        glPopMatrix() 
         
         pygame.display.flip()
         clock.tick(60)
