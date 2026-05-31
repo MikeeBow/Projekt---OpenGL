@@ -2,12 +2,13 @@ import pygame
 from pygame.locals import *
 from OpenGL.GL import *
 from OpenGL.GLU import *
+import math
 
 # --- KONFIGURACJA ŚWIATŁA ---
-light_ambient = [0.5, 0.5, 0.5, 1.0]
-light_diffuse = [1.0, 1.0, 1.0, 1.0]
+light_ambient = [0.3, 0.3, 0.3, 1.0]   # Lekkie światło otoczenia, by cienie nie były całkiem czarne
+light_diffuse = [0.9, 0.9, 0.9, 1.0]   # Mocne światło kierunkowe nadające trójwymiarowość
+light_specular = [0.5, 0.5, 0.5, 1.0]  # Odblask na krawędziach
 
-# Funkcja pomocnicza do automatycznego obliczania wektorów normalnych (odbicia światła)
 def calculate_normal(v1, v2, v3):
     u = [v2[0] - v1[0], v2[1] - v1[1], v2[2] - v1[2]]
     v = [v3[0] - v1[0], v3[1] - v1[1], v3[2] - v1[2]]
@@ -18,23 +19,29 @@ def calculate_normal(v1, v2, v3):
     if dlugosc == 0: return [0.0, 0.0, 1.0]
     return [nx / dlugosc, ny / dlugosc, nz / dlugosc]
 
+# Pomocnicza funkcja do obliczania odległości między punktami 3D (do skalowania tekstur)
+def distance3d(p1, p2):
+    return math.sqrt((p1[0]-p2[0])**2 + (p1[1]-p2[1])**2 + (p1[2]-p2[2])**2)
+
 class Drukarka:
     parts_config = {
-        'Rama': ['VERTICES_Calosc', 'SURFACES_Rama'], 
-        'Oś X': ['VERTICES_osx', 'SURFACES_osx'],
-        'Stół': ['VERTICES_bed', 'SURFACES_bed'],
-        'Ekstruder': ['VERTICES_Extruder', 'SURFACES_Extruder']
+        'Rama': ['VERTICES_Calosc', 'SURFACES_Rama', 0.05],       # Ostatnia wartość to gęstość kafelkowania tekstury
+        'Oś X': ['VERTICES_osx', 'SURFACES_osx', 0.1],
+        'Stół': ['VERTICES_bed', 'SURFACES_bed', 0.05],
+        'Ekstruder': ['VERTICES_Extruder', 'SURFACES_Extruder', 0.1],
+        'Stol': ['VERTICES_Stol', 'SURFACES_Stol', 0.05]
     }
 
-    def __init__(self, part_name, texture_id, material=None, pos=None, rot=None):
+    def __init__(self, part_name, texture_id, pos=None, rot=None):
         self.vertices = getattr(self, self.parts_config[part_name][0])
         self.surfaces = getattr(self, self.parts_config[part_name][1])
+        self.tex_scale = self.parts_config[part_name][2]
         self.texture_id = texture_id  
-        self.material = material  
         self.pos = pos if pos else [0.0, 0.0, 0.0]
         self.rot = rot if rot else [0.0, 0.0, 0.0]
 
     VERTICES_Calosc = (
+        # Podstawa i kolumny
         (0,0,0), (100,0,0), (100,100,0), (0,100,0),
         (0,0,10), (100,0,10), (100,100,10), (0,100,10),
         (10,10,10), (90,10,10), (90,90,10), (10,90,10),
@@ -46,7 +53,23 @@ class Drukarka:
         (0,30,120), (100,30,120), (100,40,120), (0,40,120),
         (0,30,130), (100,30,130), (100,40,130), (0,40,130),
         (45,10,0), (55,10,0), (55,90,0), (45,90,0),
-        (45,10,10), (55,10,10), (55,90,10), (45,90,10)
+        (45,10,10), (55,10,10), (55,90,10), (45,90,10),
+        
+        # --- NOWE: Lewa szyna pionowa (Z) na froncie lewej kolumny (Indeksy 48-55) ---
+        (4, 28, 10), (6, 28, 10), (6, 30, 10), (4, 30, 10),
+        (4, 28, 130), (6, 28, 130), (6, 30, 130), (4, 30, 130),
+        
+        # --- NOWE: Prawa szyna pionowa (Z) na froncie prawej kolumny (Indeksy 56-63) ---
+        (94, 28, 10), (96, 28, 10), (96, 30, 10), (94, 30, 10),
+        (94, 28, 130), (96, 28, 130), (96, 30, 130), (94, 30, 130),
+
+        # --- NOWE: Lewa szyna pozioma (Y) na dole pod stołem (Indeksy 64-71) ---
+        (30, 10, 10), (32, 10, 10), (32, 10, 12), (30, 10, 12),
+        (30, 130, 10), (32, 130, 10), (32, 130, 12), (30, 130, 12),
+
+        # --- NOWE: Prawa szyna pozioma (Y) pod stołem (Indeksy 72-79) ---
+        (68, 10, 10), (70, 10, 10), (70, 10, 12), (68, 10, 12),
+        (68, 130, 10), (70, 130, 10), (70, 130, 12), (68, 130, 12)
     )
 
     SURFACES_Rama = (
@@ -61,51 +84,116 @@ class Drukarka:
         (24, 25, 26, 27), (24, 25, 29, 28), (27, 24, 28, 31), 
         (27, 31, 30, 26), (26, 30, 29, 25), (28, 29, 30, 31),
         (32, 33, 34, 35), (32, 33, 37, 36), (35, 32, 36, 39), 
-        (35, 39, 38, 34), (34, 38, 37, 33), (36, 37, 38, 39)
+        (35, 39, 38, 34), (34, 38, 37, 33), (36, 37, 38, 39),
+        
+        # Powierzchnie dodanych szyn Z i Y
+        (48,49,50,51), (52,53,54,55), (48,49,53,52), (49,50,54,53), (50,51,55,54), (51,48,52,55),
+        (56,57,58,59), (60,61,62,63), (56,57,61,60), (57,58,62,61), (58,59,63,62), (59,56,60,63),
+        (64,65,66,67), (68,69,70,71), (64,65,69,68), (65,66,70,69), (66,67,71,70), (67,64,68,71),
+        (72,73,74,75), (76,77,78,79), (72,73,77,76), (73,74,78,77), (74,75,79,78), (75,72,76,79)
     )
     
+    # ---------------------------------------------------------
+    # --- OŚ X (Wzbogacona o wypukłą szynę poziomą na przodzie)
+    # ---------------------------------------------------------
     VERTICES_osx = (
-        (0,35,88),
-        (100,35,88),
-        (100,55,88),
-        (0,55,88),
+        # 0-7: Główna belka nośna
+        (0, 40, 90), (100, 40, 90), (100, 50, 90), (0, 50, 90),
+        (0, 40, 100), (100, 40, 100), (100, 50, 100), (0, 50, 100),
 
-        (0,35,102),
-        (100,35,102),
-        (100,55,102),
-        (0,55,102)
+        # 8-15: NOWE - Wypukła szyna pozioma na froncie (dla ekstrudera)
+        (0, 50, 93), (100, 50, 93), (100, 52, 93), (0, 52, 93),
+        (0, 50, 97), (100, 50, 97), (100, 52, 97), (0, 52, 97),
+
+        # 16-23: NOWE - Lewy wózek obejmujący pionową szynę ramy
+        (-2, 26, 85), (12, 26, 85), (12, 40, 85), (-2, 40, 85),
+        (-2, 26, 105), (12, 26, 105), (12, 40, 105), (-2, 40, 105),
+
+        # 24-31: NOWE - Prawy wózek obejmujący pionową szynę ramy
+        (88, 26, 85), (102, 26, 85), (102, 40, 85), (88, 40, 85),
+        (88, 26, 105), (102, 26, 105), (102, 40, 105), (88, 40, 105)
     )
    
     SURFACES_osx = (
-        (0, 1, 2, 3), (0, 1, 5, 4), (3, 0, 4, 7), (3, 7, 6, 2), (2, 6, 5, 1), (4, 5, 6, 7)
+        # Ściany głównej belki
+        (0, 1, 2, 3), (4, 5, 6, 7), (0, 1, 5, 4), (3, 2, 6, 7), (1, 2, 6, 5), (0, 3, 7, 4),
+        # Ściany wypukłej szyny dla ekstrudera
+        (8, 9, 10, 11), (12, 13, 14, 15), (8, 9, 13, 12), (11, 10, 14, 15), (9, 10, 14, 13), (8, 11, 15, 12),
+        # Ściany lewego wózka osi Z
+        (16, 17, 18, 19), (20, 21, 22, 23), (16, 17, 21, 20), (19, 18, 22, 23), (17, 18, 22, 21), (16, 19, 23, 20),
+        # Ściany prawego wózka osi Z
+        (24, 25, 26, 27), (28, 29, 30, 31), (24, 25, 29, 28), (27, 26, 30, 31), (25, 26, 30, 29), (24, 27, 31, 28)
     )
-
+    # ---------------------------------------------------------
+    # --- STÓŁ (Wzbogacony o wózki łączące go z dolnymi szynami)
+    # ---------------------------------------------------------
     VERTICES_bed = (
         (15,15,15), (85,15,15), (85,85,15), (15,85,15),
         (15,15,20), (85,15,20), (85,85,20), (15,85,20),
         (45,40,10), (55,40,10), (55,60,10), (45,60,10),
-        (45,40,15), (55,40,15), (55,60,15), (45,60,15)
+        (45,40,15), (55,40,15), (55,60,15), (45,60,15),
+        
+        # --- NOWE: Lewy łącznik (wózek) pod stołem (Indeksy 16-23) ---
+        (28, 35, 12), (34, 35, 12), (34, 65, 12), (28, 65, 12),
+        (28, 35, 15), (34, 35, 15), (34, 65, 15), (28, 65, 15),
+        
+        # --- NOWE: Prawy łącznik (wózek) pod stołem (Indeksy 24-31) ---
+        (66, 35, 12), (72, 35, 12), (72, 65, 12), (66, 65, 12),
+        (66, 35, 15), (72, 35, 15), (72, 65, 15), (66, 65, 15)
     )
+    
     SURFACES_bed = (
         (0, 1, 2, 3), (0, 1, 5, 4), (3, 0, 4, 7), (3, 7, 6, 2), (2, 6, 5, 1), (4, 5, 6, 7),
-        (8, 9, 10, 11), (8, 9, 13, 12), (11, 8, 12, 15), (11, 15, 14, 10), (10, 14, 13, 9), (12, 13, 14, 15)
+        (8, 9, 10, 11), (8, 9, 13, 12), (11, 8, 12, 15), (11, 15, 14, 10), (10, 14, 13, 9), (12, 13, 14, 15),
+        
+        # Powierzchnie wózków stołu
+        (16,17,18,19), (20,21,22,23), (16,17,21,20), (17,18,22,21), (18,19,23,22), (19,16,20,23),
+        (24,25,26,27), (28,29,30,31), (24,25,29,28), (25,26,30,29), (26,27,31,30), (27,24,28,31)
     )
 
+    # ---------------------------------------------------------
+    # --- EKSTRUDER (Wzbogacony o masywny wózek trzymający szynę X)
+    # ---------------------------------------------------------
     VERTICES_Extruder = (
-        (-10, 50, 90),  (10, 50, 90),  (10, 70, 90),  (-10, 70, 90),
-        (-10, 50, 110), (10, 50, 110), (10, 70, 110), (-10, 70, 110),
-        (-5, 55, 90),    (5, 55, 90),    (5, 65, 90),    (-5, 65, 90),    
+        # 0-7: Górny chwyt (opiera się na górnej części szyny X)
+        (-10, 50, 97.5), (10, 50, 97.5), (10, 53, 97.5), (-10, 53, 97.5),
+        (-10, 50, 110), (10, 50, 110), (10, 53, 110), (-10, 53, 110),
+
+        # 8-15: Dolny chwyt (obejmuje szynę X od dołu)
+        # Pomiędzy Z=92.5 a Z=97.5 powstaje idealna luka (frez), w którą wchodzi szyna belki X!
+        (-10, 50, 86), (10, 50, 86), (10, 53, 86), (-10, 53, 86),
+        (-10, 50, 92.5), (10, 50, 92.5), (10, 53, 92.5), (-10, 53, 92.5),
+
+        # 16-23: Główny, masywny korpus ekstrudera (z przodu)
+        (-12, 53, 86), (12, 53, 86), (12, 65, 86), (-12, 65, 86),
+        (-12, 53, 110), (12, 53, 110), (12, 65, 110), (-12, 65, 110),
+
+        # 24-27: Kwadratowa podstawa dyszy (hotendu)
+        (-4, 58, 86), (4, 58, 86), (4, 62, 86), (-4, 62, 86),
+        
+        # 28: Ostry czubek dyszy - Zostawiony na wysokości Z=82, aby zachować logikę drukowania
         (0, 60, 82)
     )
 
-    # POPRAWKA: Usunięto powtórzenia w trójkątach dla dyszy ekstrudera
     SURFACES_Extruder = (
-        (0, 1, 5, 4), (1, 2, 6, 5), (2, 3, 7, 6), (3, 0, 4, 7),
-        (4, 5, 6, 7),
-        (8, 9, 12),   
-        (9, 10, 12),  
-        (10, 11, 12),
-        (11, 8, 12)  
+        # Górny chwyt
+        (0, 1, 2, 3), (4, 5, 6, 7), (0, 1, 5, 4), (3, 2, 6, 7), (1, 2, 6, 5), (0, 3, 7, 4),
+        # Dolny chwyt
+        (8, 9, 10, 11), (12, 13, 14, 15), (8, 9, 13, 12), (11, 10, 14, 15), (9, 10, 14, 13), (8, 11, 15, 12),
+        # Główny korpus
+        (16, 17, 18, 19), (20, 21, 22, 23), (16, 17, 21, 20), (19, 18, 22, 23), (17, 18, 22, 21), (16, 19, 23, 20),
+        
+        # Dysza (4 trójkątne ściany zbiegające się w jednym punkcie)
+        (24, 25, 28), (25, 26, 28), (26, 27, 28), (27, 24, 28)
+    )
+
+    VERTICES_Stol = (
+    (-150, -50, -5), (250, -50, -5), (250, 150, -5), (-150, 150, -5), # dół
+    (-150, -50, 0), (250, -50, 0), (250, 150, 0), (-150, 150, 0)     # góra (powierzchnia)
+    )
+
+    SURFACES_Stol = (
+        (0, 1, 2, 3), (4, 5, 6, 7), (0, 1, 5, 4), (2, 3, 7, 6), (1, 2, 6, 5), (0, 3, 7, 4)
     )
 
     def draw(self):
@@ -115,56 +203,61 @@ class Drukarka:
         glRotatef(self.rot[1], 0, 1, 0)
         glRotatef(self.rot[2], 0, 0, 1)
 
-        glDisable(GL_LIGHTING)
-
         glEnable(GL_TEXTURE_2D)
         glBindTexture(GL_TEXTURE_2D, self.texture_id)
 
-        # Tekstura ma być wyświetlana bez wpływu światła i koloru
-        glTexEnvi(
-            GL_TEXTURE_ENV,
-            GL_TEXTURE_ENV_MODE,
-            GL_REPLACE
-        )
-
+        # KLUCZOWE: GL_MODULATE łączy oryginalną surową teksturę z oświetleniem 3D (cienie + blask krawędzi)
+        glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE)
         glColor3f(1.0, 1.0, 1.0)
 
-        # Renderowanie ścian (czworokąty i trójkąty)
         for surface in self.surfaces:
+            v1 = self.vertices[surface[0]]
+            v2 = self.vertices[surface[1]]
+            v3 = self.vertices[surface[2]]
+            normal = calculate_normal(v1, v2, v3)
+            
             if len(surface) == 4:
+                v4 = self.vertices[surface[3]]
                 glBegin(GL_QUADS)
-                uv_coords = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
-                for i, vertex in enumerate(surface):
-                    glTexCoord2f(uv_coords[i][0], uv_coords[i][1])
-                    glVertex3fv(self.vertices[vertex])
+                glNormal3fv(normal)
+                
+                # Dynamiczne dopasowanie proporcji mapowania UV na podstawie wymiarów ścian geometrycznych
+                w = distance3d(v1, v2) * self.tex_scale
+                h = distance3d(v2, v3) * self.tex_scale
+                
+                glTexCoord2f(0.0, 0.0)
+                glVertex3fv(v1)
+                glTexCoord2f(w, 0.0)
+                glVertex3fv(v2)
+                glTexCoord2f(w, h)
+                glVertex3fv(v3)
+                glTexCoord2f(0.0, h)
+                glVertex3fv(v4)
                 glEnd()
+                
             elif len(surface) == 3:
                 glBegin(GL_TRIANGLES)
-                uv_coords = [(0.0, 0.0), (1.0, 0.0), (0.5, 1.0)]
-                for i, vertex in enumerate(surface):
-                    glTexCoord2f(uv_coords[i][0], uv_coords[i][1])
-                    glVertex3fv(self.vertices[vertex])
+                glNormal3fv(normal)
+                
+                w = distance3d(v1, v2) * self.tex_scale
+                h = distance3d(v2, v3) * self.tex_scale
+                
+                glTexCoord2f(0.0, 0.0)
+                glVertex3fv(v1)
+                glTexCoord2f(w, 0.0)
+                glVertex3fv(v2)
+                glTexCoord2f(w / 2.0, h)
+                glVertex3fv(v3)
                 glEnd()
 
         glDisable(GL_TEXTURE_2D)
-        
-        # 3. WŁĄCZAMY OŚWIETLENIE Z POWROTEM – aby nie popsuć rysowania innych rzeczy (np. filamentu)
-        glEnable(GL_LIGHTING)
-        
         glPopMatrix()
+
 
 
 def load_texture(filename):
     texture_surface = pygame.image.load(filename)
-
-    print(filename)
-    print(texture_surface.get_bitsize())
-    print(texture_surface.get_masks())
-    texture_surface = pygame.image.load(filename)
-
-    # Konwersja do formatu RGB zgodnego z OpenGL
     texture_surface = texture_surface.convert()
-
     texture_data = pygame.image.tostring(texture_surface, "RGB", True)
     width = texture_surface.get_width()
     height = texture_surface.get_height()
@@ -172,32 +265,17 @@ def load_texture(filename):
     tex_id = glGenTextures(1)
     glBindTexture(GL_TEXTURE_2D, tex_id)
 
-    glTexEnvi(
-        GL_TEXTURE_ENV,
-        GL_TEXTURE_ENV_MODE,
-        GL_REPLACE
-    )
+    # REWOLUCJA: Zmiana filtrów z NEAREST na LINEAR (oraz dodanie Mipmap), aby usunąć "pikselozę"
+    # Tekstury z daleka staną się gładkie i fotorealistyczne
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR)
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
     
-
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
+    # Pozwalamy teksturze powtarzać się na długich elementach ramy
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
 
-    # Wyświetlaj dokładnie kolory tekstury
-    glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE)
-
-    glTexImage2D(
-        GL_TEXTURE_2D,
-        0,
-        GL_RGB,
-        width,
-        height,
-        0,
-        GL_RGB,
-        GL_UNSIGNED_BYTE,
-        texture_data
-    )
+    # Budowanie piramidy mipmap (automatyczne skalowanie odległych pikseli)
+    gluBuild2DMipmaps(GL_TEXTURE_2D, GL_RGB, width, height, GL_RGB, GL_UNSIGNED_BYTE, texture_data)
 
     return tex_id
 
@@ -209,40 +287,48 @@ def main():
     display = (1200, 800)
     pygame.display.set_mode(display, DOUBLEBUF | OPENGL)
 
-
-
-    tekstura_ekstrudera = load_texture("ekstruder.jpg")
-    
     glMatrixMode(GL_PROJECTION)
     gluPerspective(45, (display[0]/display[1]), 0.1, 1000.0)
     glMatrixMode(GL_MODELVIEW)
 
-    tekstura_metalu = load_texture("metal.webp")
+    # Ładowanie grafik
+    tekstura_metalu = load_texture("metal.jpg")
     tekstura_plastiku = load_texture("plastik.jpg")
-    tekstura_belki=load_texture("osX.jpg")
+    tekstura_belki = load_texture("osX.jpg")
+    tekstura_ekstrudera = load_texture("ekstruder.jpg")
+    tekstura_stolu= load_texture("stol.jpg")
+    tekstura_drewna=load_texture("drewno.jpg")
+    tekstura_tla = load_texture("tlo.jpg")
     
-    
-
+    # Inicjalizacja modeli
     rama = Drukarka('Rama', tekstura_metalu)
     os_x = Drukarka('Oś X', tekstura_belki)
-    bed = Drukarka('Stół', tekstura_plastiku)
+    bed = Drukarka('Stół', tekstura_stolu)
     extruder = Drukarka('Ekstruder', tekstura_ekstrudera)
+    stol=Drukarka('Stol', tekstura_drewna)
     
+    # --- ZAAWANSOWANE USTAWIENIA RENDEROWANIA ---
     glEnable(GL_DEPTH_TEST)
     glEnable(GL_LIGHTING)
     glEnable(GL_NORMALIZE)   
-    glShadeModel(GL_SMOOTH) 
-    glLightModelfv(GL_LIGHT_MODEL_AMBIENT, [0.4, 0.4, 0.4, 1.0])
+    glShadeModel(GL_SMOOTH)  # Płynne cieniowanie krawędzi
+    
+    # Globalne oświetlenie rozproszone środowiska
+    glLightModelfv(GL_LIGHT_MODEL_AMBIENT, [0.3, 0.3, 0.3, 1.0])
+    
+    # Konfiguracja głównego źródła światła sceny (Z góry i boku)
     glEnable(GL_LIGHT0)
     glLightfv(GL_LIGHT0, GL_AMBIENT, light_ambient)
     glLightfv(GL_LIGHT0, GL_DIFFUSE, light_diffuse)
+    glLightfv(GL_LIGHT0, GL_SPECULAR, light_specular)
     
     rotate_x, rotate_y = -70, 150  
     distance = -35 
     mouse_down = False             
 
     tryb_sterowania = 1
-    wydrukowane_sciezki = []   
+    kolor_filamentu = [0.0, 0.7, 1.0]  # Początkowy kolor (jasnoniebieski)
+    wydrukowane_sciezki = []
     aktualna_sciezka = []      
 
     auto_drukowanie = False
@@ -306,6 +392,10 @@ def main():
         
         if keys[K_1]: tryb_sterowania = 1
         if keys[K_2]: tryb_sterowania = 2
+
+        if keys[K_r]: kolor_filamentu = [1.0, 0.0, 0.0]  # Czerwony
+        if keys[K_g]: kolor_filamentu = [0.0, 1.0, 0.0]  # Zielony
+        if keys[K_b]: kolor_filamentu = [0.0, 0.0, 1.0]  # Niebieski
         
         if keys[K_4] and not auto_drukowanie:
             auto_drukowanie = True
@@ -358,7 +448,7 @@ def main():
                 if auto_indeks_punktu >= len(punkty_kostki):
                     auto_drukowanie = False
                     if aktualna_sciezka:
-                        wydrukowane_sciezki.append(aktualna_sciezka)
+                        wydrukowane_sciezki.append((aktualna_sciezka, kolor_filamentu.copy()))
                         aktualna_sciezka = []
 
         if keys[K_SPACE] or auto_drukowanie:
@@ -386,8 +476,14 @@ def main():
             if aktualna_sciezka:
                 wszystkie_do_sprawdzenia.append(aktualna_sciezka)
 
-            for sciezka in wszystkie_do_sprawdzenia:
-                for pkt in sciezka:
+            for element in wszystkie_do_sprawdzenia:
+                # Sprawdzamy, czy element to nowa struktura (sciezka, kolor) czy stara (sama sciezka)
+                if isinstance(element, tuple):
+                    sciezka_punkty = element[0]
+                else:
+                    sciezka_punkty = element
+
+                for pkt in sciezka_punkty:
                     dx = pozycja_dyszy_swiat_x - pkt[0]
                     dy = pozycja_wzgledna_y - pkt[1]
                     dz = pozycja_dyszy_swiat_z - pkt[2]
@@ -424,22 +520,23 @@ def main():
                         aktualna_sciezka.append(pozycja_dyszy_wzgledna)
             else:
                 if aktualna_sciezka:
-                    wydrukowane_sciezki.append(aktualna_sciezka)
+                    wydrukowane_sciezki.append((aktualna_sciezka, kolor_filamentu.copy()))
                     aktualna_sciezka = []
         else:
             if aktualna_sciezka:
-                wydrukowane_sciezki.append(aktualna_sciezka)
+                wydrukowane_sciezki.append((aktualna_sciezka, kolor_filamentu.copy()))
                 aktualna_sciezka = []
 
-        glClearColor(0.15, 0.15, 0.15, 1.0)
+        glClearColor(0.12, 0.12, 0.14, 1.0) # Nieco ładniejsze, ciemnografitowe tło studyjne
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
         glLoadIdentity()
         
-        glTranslatef(0, 0, distance)  
+        glTranslatef(0, -3, distance)  
         glRotatef(rotate_x, 1, 0, 0)  
         glRotatef(rotate_y, 0, 0, 1)  
 
-        glLightfv(GL_LIGHT0, GL_POSITION, [50.0, 50.0, 200.0, 1.0])
+        # Światło porusza się razem z kamerą z góry, rzucając ładne cienie w zagłębienia drukarki
+        glLightfv(GL_LIGHT0, GL_POSITION, [50.0, 50.0, 300.0, 1.0])
 
         glPushMatrix()
         glScalef(0.1, 0.1, 0.1)
@@ -449,31 +546,38 @@ def main():
         os_x.pos[1] = 0.0
         extruder.pos[1] = 0.0
         
+        # Rysowanie elementów drukarki
         rama.draw()
         os_x.draw()
         extruder.draw()
         bed.draw()
+        stol.draw()
 
-        # --- RYSOWANIE FILAMENTU ---
+# --- RYSOWANIE FILAMENTU ---
         glDisable(GL_LIGHTING)  
         glLineWidth(4.0)        
-        glColor3f(1.0, 1.0, 1.0) 
-
-        wszystkie_sciezki = wydrukowane_sciezki.copy()
-        if aktualna_sciezka:
-            wszystkie_sciezki.append(aktualna_sciezka)
 
         glPushMatrix()
         glTranslatef(0.0, bed.pos[1], 0.0)
 
-        for sciezka in wszystkie_sciezki:
+        # 1. Rysowanie historii wydruku (każda ścieżka ma swój własny, zapisany wcześniej kolor)
+        for sciezka, kolor_sciezki in wydrukowane_sciezki:
+            glColor3fv(kolor_sciezki)  # Ustawiamy kolor dedykowany dla tej linii
             glBegin(GL_LINE_STRIP)
             for punkt in sciezka:
                 glVertex3fv(punkt)
             glEnd()
             
+        # 2. Rysowanie linii, która powstaje w tym momencie (używa bieżącego koloru)
+        if aktualna_sciezka:
+            glColor3fv(kolor_filamentu)  # Kolor aktualnie wybrany klawiszem R, G lub B
+            glBegin(GL_LINE_STRIP)
+            for punkt in aktualna_sciezka:
+                glVertex3fv(punkt)
+            glEnd()
+            
         glPopMatrix() 
-        glEnable(GL_LIGHTING)  
+        glEnable(GL_LIGHTING) 
         
         glPopMatrix() 
         
