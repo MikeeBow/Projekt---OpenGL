@@ -2,8 +2,11 @@ import pygame
 from pygame.locals import *
 from OpenGL.GL import *
 from OpenGL.GLU import *
+import sys
 import math
-from gcodeInterpreter import load_gcode_file
+import re
+import numpy as np
+from funkcje import *
 
 file_name = 'CE3S1_3DBenchy.gcode'
 
@@ -11,19 +14,6 @@ file_name = 'CE3S1_3DBenchy.gcode'
 light_ambient = [0.3, 0.3, 0.3, 1.0]   
 light_diffuse = [0.9, 0.9, 0.9, 1.0]   
 light_specular = [0.5, 0.5, 0.5, 1.0]  
-
-def calculate_normal(v1, v2, v3):
-    u = [v2[0] - v1[0], v2[1] - v1[1], v2[2] - v1[2]]
-    v = [v3[0] - v1[0], v3[1] - v1[1], v3[2] - v1[2]]
-    nx = u[1] * v[2] - u[2] * v[1]
-    ny = u[2] * v[0] - u[0] * v[2]
-    nz = u[0] * v[1] - u[1] * v[0]
-    dlugosc = (nx**2 + ny**2 + nz**2)**0.5
-    if dlugosc == 0: return [0.0, 0.0, 1.0]
-    return [nx / dlugosc, ny / dlugosc, nz / dlugosc]
-
-def distance3d(p1, p2):
-    return math.sqrt((p1[0]-p2[0])**2 + (p1[1]-p2[1])**2 + (p1[2]-p2[2])**2)
 
 class Drukarka:
     parts_config = {
@@ -42,110 +32,16 @@ class Drukarka:
         self.pos = pos if pos else [0.0, 0.0, 0.0]
         self.rot = rot if rot else [0.0, 0.0, 0.0]
 
-    VERTICES_Calosc = (
-        (0,0,0), (100,0,0), (100,100,0), (0,100,0),
-        (0,0,10), (100,0,10), (100,100,10), (0,100,10),
-        (10,10,10), (90,10,10), (90,90,10), (10,90,10),
-        (10,10,0), (90,10,0), (90,90,0), (10,90,0),
-        (0,30,10), (10,30,10), (10,40,10), (0,40,10),
-        (0,30,120), (10,30,120), (10,40,120), (0,40,120),
-        (90,30,10), (100,30,10), (100,40,10), (90,40,10),
-        (90,30,120), (100,30,120), (100,40,120), (90,40,120),
-        (0,30,120), (100,30,120), (100,40,120), (0,40,120),
-        (0,30,130), (100,30,130), (100,40,130), (0,40,130),
-        (45,10,0), (55,10,0), (55,90,0), (45,90,0),
-        (45,10,10), (55,10,10), (55,90,10), (45,90,10),
-        (4, 28, 10), (6, 28, 10), (6, 30, 10), (4, 30, 10),
-        (4, 28, 130), (6, 28, 130), (6, 30, 130), (4, 30, 130),
-        (94, 28, 10), (96, 28, 10), (96, 30, 10), (94, 30, 10),
-        (94, 28, 130), (96, 28, 130), (96, 30, 130), (94, 30, 130),
-        (30, 10, 10), (32, 10, 10), (32, 10, 12), (30, 10, 12),
-        (30, 130, 10), (32, 130, 10), (32, 130, 12), (30, 130, 12),
-        (68, 10, 10), (70, 10, 10), (70, 10, 12), (68, 10, 12),
-        (68, 130, 10), (70, 130, 10), (70, 130, 12), (68, 130, 12)
-    )
-
-    SURFACES_Rama = (
-        (0, 1, 5, 4), (1, 2, 6, 5), (2, 3, 7, 6), (3, 0, 4, 7),
-        (4, 5, 9, 8), (5, 6, 10, 9), (6, 7, 11, 10), (7, 4, 8, 11),
-        (0, 1, 13, 12), (1, 2, 14, 13), (2, 3, 15, 14), (3, 0, 12, 15),
-        (8, 9, 13, 12), (9, 10, 14, 13), (10, 11, 15, 14), (11, 8, 12, 15),
-        (40, 41, 42, 43), (40, 41, 45, 44), (43, 40, 44, 47), 
-        (43, 47, 46, 42), (42, 46, 45, 41), (44, 45, 46, 47),
-        (16, 17, 18, 19), (16, 17, 21, 20), (19, 16, 20, 23), 
-        (19, 23, 22, 18), (18, 22, 21, 17), (20, 21, 22, 23),
-        (24, 25, 26, 27), (24, 25, 29, 28), (27, 24, 28, 31), 
-        (27, 31, 30, 26), (26, 30, 29, 25), (28, 29, 30, 31),
-        (32, 33, 34, 35), (32, 33, 37, 36), (35, 32, 36, 39), 
-        (35, 39, 38, 34), (34, 38, 37, 33), (36, 37, 38, 39),
-        (48,49,50,51), (52,53,54,55), (48,49,53,52), (49,50,54,53), (50,51,55,54), (51,48,52,55),
-        (56,57,58,59), (60,61,62,63), (56,57,61,60), (57,58,62,61), (58,59,63,62), (59,56,60,63),
-        (64,65,66,67), (68,69,70,71), (64,65,69,68), (65,66,70,69), (66,67,71,70), (67,64,68,71),
-        (72,73,74,75), (76,77,78,79), (72,73,77,76), (73,74,78,77), (74,75,79,78), (75,72,76,79)
-    )
-    
-    VERTICES_osx = (
-        (0, 40, 90), (100, 40, 90), (100, 50, 90), (0, 50, 90),
-        (0, 40, 100), (100, 40, 100), (100, 50, 100), (0, 50, 100),
-        (0, 50, 93), (100, 50, 93), (100, 52, 93), (0, 52, 93),
-        (0, 50, 97), (100, 50, 97), (100, 52, 97), (0, 52, 97),
-        (-2, 26, 85), (12, 26, 85), (12, 40, 85), (-2, 40, 85),
-        (-2, 26, 105), (12, 26, 105), (12, 40, 105), (-2, 40, 105),
-        (88, 26, 85), (102, 26, 85), (102, 40, 85), (88, 40, 85),
-        (88, 26, 105), (102, 26, 105), (102, 40, 105), (88, 40, 105)
-    )
-   
-    SURFACES_osx = (
-        (0, 1, 2, 3), (4, 5, 6, 7), (0, 1, 5, 4), (3, 2, 6, 7), (1, 2, 6, 5), (0, 3, 7, 4),
-        (8, 9, 10, 11), (12, 13, 14, 15), (8, 9, 13, 12), (11, 10, 14, 15), (9, 10, 14, 13), (8, 11, 15, 12),
-        (16, 17, 18, 19), (20, 21, 22, 23), (16, 17, 21, 20), (19, 18, 22, 23), (17, 18, 22, 21), (16, 19, 23, 20),
-        (24, 25, 26, 27), (28, 29, 30, 31), (24, 25, 29, 28), (27, 26, 30, 31), (25, 26, 30, 29), (24, 27, 31, 28)
-    )
-
-    VERTICES_bed = (
-        (15,15,15), (85,15,15), (85,85,15), (15,85,15),
-        (15,15,20), (85,15,20), (85,85,20), (15,85,20),
-        (45,40,10), (55,40,10), (55,60,10), (45,60,10),
-        (45,40,15), (55,40,15), (55,60,15), (45,60,15),
-        (28, 35, 12), (34, 35, 12), (34, 65, 12), (28, 65, 12),
-        (28, 35, 15), (34, 35, 15), (34, 65, 15), (28, 65, 15),
-        (66, 35, 12), (72, 35, 12), (72, 65, 12), (66, 65, 12),
-        (66, 35, 15), (72, 35, 15), (72, 65, 15), (66, 65, 15)
-    )
-    
-    SURFACES_bed = (
-        (0, 1, 2, 3), (0, 1, 5, 4), (3, 0, 4, 7), (3, 7, 6, 2), (2, 6, 5, 1), (4, 5, 6, 7),
-        (8, 9, 10, 11), (8, 9, 13, 12), (11, 8, 12, 15), (11, 15, 14, 10), (10, 14, 13, 9), (12, 13, 14, 15),
-        (16,17,18,19), (20,21,22,23), (16,17,21,20), (17,18,22,21), (18,19,23,22), (19,16,20,23),
-        (24,25,26,27), (28,29,30,31), (24,25,29,28), (25,26,30,29), (26,27,31,30), (27,24,28,31)
-    )
-
-    VERTICES_Extruder = (
-        (-10, 50, 97.5), (10, 50, 97.5), (10, 53, 97.5), (-10, 53, 97.5),
-        (-10, 50, 110), (10, 50, 110), (10, 53, 110), (-10, 53, 110),
-        (-10, 50, 86), (10, 50, 86), (10, 53, 86), (-10, 53, 86),
-        (-10, 50, 92.5), (10, 50, 92.5), (10, 53, 92.5), (-10, 53, 92.5),
-        (-12, 53, 86), (12, 53, 86), (12, 65, 86), (-12, 65, 86),
-        (-12, 53, 110), (12, 53, 110), (12, 65, 110), (-12, 65, 110),
-        (-4, 58, 86), (4, 58, 86), (4, 62, 86), (-4, 62, 86),
-        (0, 60, 82)
-    )
-
-    SURFACES_Extruder = (
-        (0, 1, 2, 3), (4, 5, 6, 7), (0, 1, 5, 4), (3, 2, 6, 7), (1, 2, 6, 5), (0, 3, 7, 4),
-        (8, 9, 10, 11), (12, 13, 14, 15), (8, 9, 13, 12), (11, 10, 14, 15), (9, 10, 14, 13), (8, 11, 15, 12),
-        (16, 17, 18, 19), (20, 21, 22, 23), (16, 17, 21, 20), (19, 18, 22, 23), (17, 18, 22, 21), (16, 19, 23, 20),
-        (24, 25, 28), (25, 26, 28), (26, 27, 28), (27, 24, 28)
-    )
-
-    VERTICES_Stol = (
-        (-150, -50, -5), (250, -50, -5), (250, 150, -5), (-150, 150, -5), 
-        (-150, -50, 0), (250, -50, 0), (250, 150, 0), (-150, 150, 0)     
-    )
-
-    SURFACES_Stol = (
-        (0, 1, 2, 3), (4, 5, 6, 7), (0, 1, 5, 4), (2, 3, 7, 6), (1, 2, 6, 5), (0, 3, 7, 4)
-    )
+    VERTICES_Calosc = ((0,0,0), (100,0,0), (100,100,0), (0,100,0), (0,0,10), (100,0,10), (100,100,10), (0,100,10), (10,10,10), (90,10,10), (90,90,10), (10,90,10), (10,10,0), (90,10,0), (90,90,0), (10,90,0), (0,30,10), (10,30,10), (10,40,10), (0,40,10), (0,30,120), (10,30,120), (10,40,120), (0,40,120), (90,30,10), (100,30,10), (100,40,10), (90,40,10), (90,30,120), (100,30,120), (100,40,120), (90,40,120), (0,30,120), (100,30,120), (100,40,120), (0,40,120), (0,30,130), (100,30,130), (100,40,130), (0,40,130), (45,10,0), (55,10,0), (55,90,0), (45,90,0), (45,10,10), (55,10,10), (55,90,10), (45,90,10), (4,28,10), (6,28,10), (6,30,10), (4,30,10), (4,28,130), (6,28,130), (6,30,130), (4,30,130), (94,28,10), (96,28,10), (96,30,10), (94,30,10), (94,28,130), (96,28,130), (96,30,130), (94,30,130), (30,10,10), (32,10,10), (32,10,12), (30,10,12), (30,130,10), (32,130,10), (32,130,12), (30,130,12), (68,10,10), (70,10,10), (70,10,12), (68,10,12), (68,130,10), (70,130,10), (70,130,12), (70,130,12))
+    SURFACES_Rama = ((0,1,5,4), (1,2,6,5), (2,3,7,6), (3,0,4,7), (4,5,9,8), (5,6,10,9), (6,7,11,10), (7,4,8,11), (0,1,13,12), (1,2,14,13), (2,3,15,14), (3,0,12,15), (8,9,13,12), (9,10,14,13), (10,11,15,14), (11,8,12,15), (40,41,42,43), (40,41,45,44), (43,40,44,47), (43,47,46,42), (42,46,45,41), (44,45,46,47), (16,17,18,19), (16,17,21,20), (19,16,20,23), (19,23,22,18), (18,22,21,17), (20,21,22,23), (24,25,26,27), (24,25,29,28), (27,24,28,31), (27,31,30,26), (26,30,29,25), (28,29,30,31), (32,33,34,35), (32,33,37,36), (35,32,36,39), (35,39,38,34), (34,38,37,33), (36,37,38,39), (48,49,50,51), (52,53,54,55), (48,49,53,52), (49,50,54,53), (50,51,55,54), (51,48,52,55), (56,57,58,59), (60,61,62,63), (56,57,61,60), (57,58,62,61), (58,59,63,62), (59,56,60,63), (64,65,66,67), (68,69,70,71), (64,65,69,68), (65,66,70,69), (66,67,71,70), (67,64,68,71), (72,73,74,75), (76,77,78,79), (72,73,77,76), (73,74,78,77), (74,75,79,78), (75,72,76,79))
+    VERTICES_osx = ((0,40,90), (100,40,90), (100,50,90), (0,50,90), (0,40,100), (100,40,100), (100,50,100), (0,50,100), (0,50,93), (100,50,93), (100,52,93), (0,52,93), (0,50,97), (100,50,97), (100,52,97), (0,52,97), (-2,26,85), (12,26,85), (12,40,85), (-2,40,85), (-2,26,105), (12,26,105), (12,40,105), (-2,40,105), (88,26,85), (102,26,85), (102,40,85), (88,40,85), (88,26,105), (102,26,105), (102,40,105), (88,40,105))
+    SURFACES_osx = ((0,1,2,3), (4,5,6,7), (0,1,5,4), (3,2,6,7), (1,2,6,5), (0,3,7,4), (8,9,10,11), (12,13,14,15), (8,9,13,12), (11,10,14,15), (9,10,14,13), (8,11,15,12), (16,17,18,19), (20,21,22,23), (16,17,21,20), (19,18,22,23), (17,18,22,21), (16,19,23,20), (24,25,26,27), (28,29,30,31), (24,25,29,28), (27,26,30,31), (25,26,30,29), (24,27,31,28))
+    VERTICES_bed = ((15,15,15), (85,15,15), (85,85,15), (15,85,15), (15,15,20), (85,15,20), (85,85,20), (15,85,20), (45,40,10), (55,40,10), (55,60,10), (45,60,10), (45,40,15), (55,40,15), (55,60,15), (45,60,15), (28,35,12), (34,35,12), (34,65,12), (28,65,12), (28,35,15), (34,35,15), (34,65,15), (28,65,15), (66,35,12), (72,35,12), (72,65,12), (66,65,12), (66,35,15), (72,35,15), (72,65,15), (66,65,15))
+    SURFACES_bed = ((0,1,2,3), (0,1,5,4), (3,0,4,7), (3,7,6,2), (2,6,5,1), (4,5,6,7), (8,9,10,11), (8,9,13,12), (11,8,12,15), (11,15,14,10), (10,14,13,9), (12,13,14,15), (16,17,18,19), (20,21,22,23), (16,17,21,20), (17,18,22,21), (18,19,23,22), (19,16,20,23), (24,25,26,27), (28,29,30,31), (24,25,29,28), (25,26,30,29), (26,27,31,30), (27,24,28,31))
+    VERTICES_Extruder = ((-10,50,97.5), (10,50,97.5), (10,53,97.5), (-10,53,97.5), (-10,50,110), (10,50,110), (10,53,110), (-10,53,110), (-10,50,86), (10,50,86), (10,53,86), (-10,53,86), (-10,50,92.5), (10,50,92.5), (10,53,92.5), (-10,53,92.5), (-12,53,86), (12,53,86), (12,65,86), (-12,65,86), (-12,53,110), (12,53,110), (12,65,110), (-12,65,110), (-4,58,86), (4,58,86), (4,62,86), (-4,62,86), (0,60,82))
+    SURFACES_Extruder = ((0,1,2,3), (4,5,6,7), (0,1,5,4), (3,2,6,7), (1,2,6,5), (0,3,7,4), (8,9,10,11), (12,13,14,15), (8,9,13,12), (11,10,14,15), (9,10,14,13), (8,11,15,12), (16,17,18,19), (20,21,22,23), (16,17,21,20), (19,18,22,23), (17,18,22,21), (16,19,23,20), (24,25,28), (25,26,28), (26,27,28), (27,24,28))
+    VERTICES_Stol = ((-150,-50,-5), (250,-50,-5), (250,150,-5), (-150,150,-5), (-150,-50,0), (250,-50,0), (250,150,0), (-150,150,0))
+    SURFACES_Stol = ((0,1,2,3), (4,5,6,7), (0,1,5,4), (2,3,7,6), (1,2,6,5), (0,3,7,4))
 
     def draw(self):
         glPushMatrix()
@@ -171,62 +67,29 @@ class Drukarka:
                 glNormal3fv(normal)
                 w = distance3d(v1, v2) * self.tex_scale
                 h = distance3d(v2, v3) * self.tex_scale
-                
-                glTexCoord2f(0.0, 0.0)
-                glVertex3fv(v1)
-                glTexCoord2f(w, 0.0)
-                glVertex3fv(v2)
-                glTexCoord2f(w, h)
-                glVertex3fv(v3)
-                glTexCoord2f(0.0, h)
-                glVertex3fv(v4)
+                glTexCoord2f(0.0, 0.0); glVertex3fv(v1)
+                glTexCoord2f(w, 0.0); glVertex3fv(v2)
+                glTexCoord2f(w, h); glVertex3fv(v3)
+                glTexCoord2f(0.0, h); glVertex3fv(v4)
                 glEnd()
-                
             elif len(surface) == 3:
                 glBegin(GL_TRIANGLES)
                 glNormal3fv(normal)
                 w = distance3d(v1, v2) * self.tex_scale
                 h = distance3d(v2, v3) * self.tex_scale
-                
-                glTexCoord2f(0.0, 0.0)
-                glVertex3fv(v1)
-                glTexCoord2f(w, 0.0)
-                glVertex3fv(v2)
-                glTexCoord2f(w / 2.0, h)
-                glVertex3fv(v3)
+                glTexCoord2f(0.0, 0.0); glVertex3fv(v1)
+                glTexCoord2f(w, 0.0); glVertex3fv(v2)
+                glTexCoord2f(w / 2.0, h); glVertex3fv(v3)
                 glEnd()
-
         glDisable(GL_TEXTURE_2D)
         glPopMatrix()
 
-def load_texture(filename):
-    try:
-        texture_surface = pygame.image.load(filename)
-        texture_surface = texture_surface.convert()
-        texture_data = pygame.image.tostring(texture_surface, "RGB", True)
-        width = texture_surface.get_width()
-        height = texture_surface.get_height()
-
-        tex_id = glGenTextures(1)
-        glBindTexture(GL_TEXTURE_2D, tex_id)
-
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR)
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
-
-        gluBuild2DMipmaps(GL_TEXTURE_2D, GL_RGB, width, height, GL_RGB, GL_UNSIGNED_BYTE, texture_data)
-        return tex_id
-    except pygame.error:
-        # Rezerwowy mechanizm tworzenia pustej tekstury w razie braku pliku graficznego
-        tex_id = glGenTextures(1)
-        glBindTexture(GL_TEXTURE_2D, tex_id)
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 1, 1, 0, GL_RGB, GL_UNSIGNED_BYTE, b'\x80\x80\x80')
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
-        return tex_id
-
 def main():
     pygame.init()
+    # Inicjalizacja miksera audio z obsługą wielu niezależnych kanałów
+    pygame.mixer.set_num_channels(8)
+    pygame.mixer.init(frequency=22050, size=-16, channels=2, buffer=512)
+    
     display = (1200, 800)
     pygame.display.set_mode(display, DOUBLEBUF | OPENGL)
 
@@ -234,7 +97,7 @@ def main():
     gluPerspective(45, (display[0]/display[1]), 0.1, 1000.0)
     glMatrixMode(GL_MODELVIEW)
 
-    # Ładowanie grafik
+    # Ładowanie tekstur
     tekstura_metalu = load_texture(r"img\metal.jpg")
     tekstura_belki = load_texture(r"img\osX.jpg")
     tekstura_ekstrudera = load_texture(r"img\ekstruder.jpg")
@@ -248,14 +111,12 @@ def main():
     extruder = Drukarka('Ekstruder', tekstura_ekstrudera)
     stol = Drukarka('Stol', tekstura_drewna)
     
-    # --- ZAAWANSOWANE USTAWIENIA RENDEROWANIA ---
+    # Otwarcie zaawansowanego renderowania
     glEnable(GL_DEPTH_TEST)
     glEnable(GL_LIGHTING)
     glEnable(GL_NORMALIZE)   
     glShadeModel(GL_SMOOTH)  
-    
     glLightModelfv(GL_LIGHT_MODEL_AMBIENT, [0.3, 0.3, 0.3, 1.0])
-    
     glEnable(GL_LIGHT0)
     glLightfv(GL_LIGHT0, GL_AMBIENT, light_ambient)
     glLightfv(GL_LIGHT0, GL_DIFFUSE, light_diffuse)
@@ -272,9 +133,25 @@ def main():
 
     auto_drukowanie = False
     auto_indeks_punktu = 0
-    predkosc_mnoznik = 1.0  # Mnożnik prędkości (sterowany klawiszami + / -)
+    predkosc_mnoznik = 1.0  
 
-    # Ładowanie pliku G-code
+    # --- PRZYGOTOWANIE SYSTEMU DŹWIĘKOWEGO DLA OSI ---
+    print("Generowanie brzmień osi do pamięci RAM...")
+    dzwieki_osi = {
+        "X": {
+            "sound": dzwiek_wolny_ruch(f_bazowa=150, duration=1.0, sample_rate=50050),
+            "channel": pygame.mixer.Channel(0)
+        },
+        "Y": {
+            "sound": dzwiek_wolny_ruch(f_bazowa=110, duration=1.0, sample_rate=45050),
+            "channel": pygame.mixer.Channel(1)
+        },
+        "Z": {
+            "sound": dzwiek_wolny_ruch(f_bazowa=220, duration=1.0, sample_rate=40050),
+            "channel": pygame.mixer.Channel(2)
+        }
+    }
+
     punkty_gcode = []
     try:
         punkty_gcode = load_gcode_file(file_name)
@@ -285,19 +162,21 @@ def main():
     clock = pygame.time.Clock()
     
     while True:
+        # Zapisujemy pozycję osi z poprzedniej klatki, aby wykryć ich ruch
+        stary_x = extruder.pos[0]
+        stary_y = bed.pos[1]
+        stary_z = os_x.pos[2]
+
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
                 return
-            
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 if event.button == 1: mouse_down = True  
                 if event.button == 4: distance += 1.0    
                 if event.button == 5: distance -= 1.0    
-            
             elif event.type == pygame.MOUSEBUTTONUP:
                 if event.button == 1: mouse_down = False
-            
             elif event.type == pygame.MOUSEMOTION:
                 if mouse_down:
                     dx, dy = event.rel
@@ -313,15 +192,12 @@ def main():
         if keys[K_g]: kolor_filamentu = [0.0, 1.0, 0.0]  
         if keys[K_b]: kolor_filamentu = [0.0, 0.0, 1.0]  
         
-        # --- ZMIANA PREDKOSCI KLAWISZAMI + / - ---
-        if keys[K_KP_PLUS]:  # Przyspieszanie
+        if keys[K_KP_PLUS]: 
             predkosc_mnoznik += 0.5
-            #if predkosc_mnoznik > 5.0: predkosc_mnoznik = 5.0
-        if keys[K_KP_MINUS]: # Zwalnianie
+        if keys[K_KP_MINUS]: 
             predkosc_mnoznik -= 0.5
             if predkosc_mnoznik < 0.1: predkosc_mnoznik = 0.1
         
-        # Aktywacja autodruku
         if keys[K_4] and not auto_drukowanie and len(punkty_gcode) > 0:
             auto_drukowanie = True
             auto_indeks_punktu = 0
@@ -329,22 +205,21 @@ def main():
             bed.pos[1] = punkty_gcode[0][1]
             os_x.pos[2] = punkty_gcode[0][2]
 
-        if keys[K_UP] and os_x.pos[2] < 20: 
-            os_x.pos[2] += 0.5
-        if keys[K_DOWN] and os_x.pos[2] > -62.0: 
-            os_x.pos[2] -= 0.5
+        # Ręczne sterowanie osiami
+        if keys[K_UP] and os_x.pos[2] < 20: os_x.pos[2] += 0.5
+        if keys[K_DOWN] and os_x.pos[2] > -62.0: os_x.pos[2] -= 0.5
 
         if tryb_sterowania == 1:
             if keys[K_LEFT] and extruder.pos[0] > 20: extruder.pos[0] -= 0.5
             if keys[K_RIGHT] and extruder.pos[0] < 80: extruder.pos[0] += 0.5
-            
         elif tryb_sterowania == 2:
             if keys[K_LEFT] and bed.pos[1] > -20: bed.pos[1] -= 0.5
-            if keys[K_RIGHT] and bed.pos[1] <  40: bed.pos[1] += 0.5
+            if keys[K_RIGHT] and bed.pos[1] < 40: bed.pos[1] += 0.5
 
+        # Autodrukowanie z pliku G-code
         if auto_drukowanie:
             cel = punkty_gcode[auto_indeks_punktu]  
-            predkosc = 10 #* predkosc_mnoznik # Dynamiczna prędkość
+            predkosc = 1.5 * predkosc_mnoznik
             
             dotarl_x = False
             dotarl_y = False
@@ -376,63 +251,74 @@ def main():
                         wydrukowane_sciezki.append((aktualna_sciezka, kolor_filamentu.copy()))
                         aktualna_sciezka = []
 
+        # --- DYNAMICZNA LOGIKA IF DLA DŹWIĘKÓW KAŻDEJ OSI ---
+        # Sprawdzamy, czy aktualna współrzędna różni się od współrzędnej z poprzedniej klatki
+        ruch_x = (extruder.pos[0] != stary_x)
+        ruch_y = (bed.pos[1] != stary_y)
+        ruch_z = (os_x.pos[2] != stary_z)
+
+        # OŚ X (Ekstruder)
+        if ruch_x:
+            if not dzwieki_osi["X"]["channel"].get_busy():
+                dzwieki_osi["X"]["channel"].play(dzwieki_osi["X"]["sound"], loops=-1)
+        else:
+            if dzwieki_osi["X"]["channel"].get_busy():
+                dzwieki_osi["X"]["channel"].stop()
+
+        # OŚ Y (Stół)
+        if ruch_y:
+            if not dzwieki_osi["Y"]["channel"].get_busy():
+                dzwieki_osi["Y"]["channel"].play(dzwieki_osi["Y"]["sound"], loops=-1)
+        else:
+            if dzwieki_osi["Y"]["channel"].get_busy():
+                dzwieki_osi["Y"]["channel"].stop()
+
+        # OŚ Z (Belka osi X w pionie)
+        if ruch_z:
+            if not dzwieki_osi["Z"]["channel"].get_busy():
+                dzwieki_osi["Z"]["channel"].play(dzwieki_osi["Z"]["sound"], loops=-1)
+        else:
+            if dzwieki_osi["Z"]["channel"].get_busy():
+                dzwieki_osi["Z"]["channel"].stop()
+
+
+        # Logika rysowania filamentu
         if keys[K_SPACE] or auto_drukowanie:
             pozycja_dyszy_swiat_x = extruder.pos[0] + 0.0
             pozycja_dyszy_swiat_y = 60.0  
             pozycja_dyszy_swiat_z = extruder.pos[2] + 82.0  
 
-            stol_min_x = 15.0
-            stol_max_x = 85.0
-            stol_min_y = 15.0 + bed.pos[1]
-            stol_max_y = 85.0 + bed.pos[1]
+            stol_min_x, stol_max_x = 15.0, 85.0
+            stol_min_y, stol_max_y = 15.0 + bed.pos[1], 85.0 + bed.pos[1]
             stol_poziom_z = 20.0  
 
             nad_stolem = (stol_min_x <= pozycja_dyszy_swiat_x <= stol_max_x) and \
                          (stol_min_y <= pozycja_dyszy_swiat_y <= stol_max_y)
 
             na_powierzchni_stolu = nad_stolem and (abs(pozycja_dyszy_swiat_z - stol_poziom_z) <= 1.5)
-
             w_powietrzu_ale_na_plastiku = False
             w_powietrzu_ale_pod_plastikiem = False
-            
             pozycja_wzgledna_y = 60.0 - bed.pos[1]
             
             wszystkie_do_sprawdzenia = wydrukowane_sciezki.copy()
-            if aktualna_sciezka:
-                wszystkie_do_sprawdzenia.append(aktualna_sciezka)
+            if aktualna_sciezka: wszystkie_do_sprawdzenia.append(aktualna_sciezka)
 
             for element in wszystkie_do_sprawdzenia:
-                if isinstance(element, tuple):
-                    sciezka_punkty = element[0]
-                else:
-                    sciezka_punkty = element
-
+                sciezka_punkty = element[0] if isinstance(element, tuple) else element
                 for pkt in sciezka_punkty:
                     dx = pozycja_dyszy_swiat_x - pkt[0]
                     dy = pozycja_wzgledna_y - pkt[1]
                     dz = pozycja_dyszy_swiat_z - pkt[2]
-                    
                     if (dx**2 + dy**2) < 2.0 and (0.0 <= dz <= 2.0):
-                        w_powietrzu_ale_na_plastiku = True
-                        break
-                        
+                        w_powietrzu_ale_na_plastiku = True; break
                     if abs(dz) <= 1.5 and (dx**2 + dy**2) < 2.0:
-                        w_powietrzu_ale_na_plastiku = True
-                        break
-
+                        w_powietrzu_ale_na_plastiku = True; break
                     if (dx**2 + dy**2) < 2.0 and (-2.0 <= dz <= 0.0):
-                        w_powietrzu_ale_pod_plastikiem = True
-                        break
-                if w_powietrzu_ale_na_plastiku or w_powietrzu_ale_pod_plastikiem:
-                    break
+                        w_powietrzu_ale_pod_plastikiem = True; break
+                if w_powietrzu_ale_na_plastiku or w_powietrzu_ale_pod_plastikiem: break
 
             if na_powierzchni_stolu or w_powietrzu_ale_na_plastiku or w_powietrzu_ale_pod_plastikiem:
-                pozycja_dyszy_wzgledna = (
-                    pozycja_dyszy_swiat_x,
-                    pozycja_wzgledna_y,
-                    pozycja_dyszy_swiat_z
-                )
-                
+                pozycja_dyszy_wzgledna = (pozycja_dyszy_swiat_x, pozycja_wzgledna_y, pozycja_dyszy_swiat_z)
                 if not aktualna_sciezka:  
                     aktualna_sciezka.append(pozycja_dyszy_wzgledna)
                 else:
@@ -451,13 +337,14 @@ def main():
                 wydrukowane_sciezki.append((aktualna_sciezka, kolor_filamentu.copy()))
                 aktualna_sciezka = []
 
+        # RENDEROWANIE SCENY OPENGL
         glClearColor(0.12, 0.12, 0.14, 1.0) 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
         glLoadIdentity()
         
-        glTranslatef(0, -3, distance)  
-        glRotatef(rotate_x, 1, 0, 0)  
-        glRotatef(rotate_y, 0, 0, 1)  
+        glTranslatef(0, -3, distance) 
+        glRotatef(rotate_x, 1, 0, 0) 
+        glRotatef(rotate_y, 0, 0, 1) 
 
         glLightfv(GL_LIGHT0, GL_POSITION, [50.0, 50.0, 300.0, 1.0])
 
@@ -469,34 +356,28 @@ def main():
         os_x.pos[1] = 0.0
         extruder.pos[1] = 0.0
         
-        # Rysowanie elementów
         rama.draw()
         os_x.draw()
         extruder.draw()
         bed.draw()
         stol.draw()
 
-        # --- RYSOWANIE FILAMENTU ---
+        # Rysowanie linii filamentu
         glDisable(GL_LIGHTING)  
         glLineWidth(6.0)        
-
         glPushMatrix()
         glTranslatef(0.0, bed.pos[1], 0.0)
 
-        # 1. Historia wydruku
         for sciezka, kolor_sciezki in wydrukowane_sciezki:
             glColor3fv(kolor_sciezki)
             glBegin(GL_LINE_STRIP)
-            for punkt in sciezka:
-                glVertex3fv(punkt)
+            for punkt in sciezka: glVertex3fv(punkt)
             glEnd()
             
-        # 2. Linia aktualna
         if aktualna_sciezka:
             glColor3fv(kolor_filamentu)
             glBegin(GL_LINE_STRIP)
-            for punkt in aktualna_sciezka:
-                glVertex3fv(punkt)
+            for punkt in aktualna_sciezka: glVertex3fv(punkt)
             glEnd()
             
         glPopMatrix() 
