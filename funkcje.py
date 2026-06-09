@@ -65,7 +65,7 @@ def calculate_normal(v1, v2, v3):
     ny = u[2] * v[0] - u[0] * v[2]
     nz = u[0] * v[1] - u[1] * v[0]
     dlugosc = (nx**2 + ny**2 + nz**2)**0.5
-    if dlugosc == 0: return [0.0, 0.0, 1.0]
+    if dlugosc == 0: return [0.0, 0.0, 1.0]         
     return [nx / dlugosc, ny / dlugosc, nz / dlugosc]
 
 def distance3d(p1, p2):
