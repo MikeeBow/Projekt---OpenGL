@@ -12,7 +12,7 @@ def load_gcode_file(file_name):
 
     with open(file_name, "r", encoding='utf-8') as file:
         for line in file:
-            # Prawidłowe usuwanie komentarzy po średniku
+
             line = line.split(";")[0].strip()
             if not line:
                 continue
@@ -20,14 +20,13 @@ def load_gcode_file(file_name):
             if line.startswith('G0') or line.startswith('G1'):
                 X_match = re.search(r'X([-+]?[0-9]*\.?[0-9]+)', line)
                 Y_match = re.search(r'Y([-+]?[0-9]*\.?[0-9]+)', line)
-                Z_match = re.search(r'Z([-+]?[0-9]*\.?[0-9]+)', line)
+                Z_match = re.search(r'Z([-+]?[0-9]*\.?[0-9]+)', line) # algorytm szuka takich patternów ipobiera z nich dane
 
                 if X_match: X = float(X_match.group(1))
                 if Y_match: Y = float(Y_match.group(1))
-                if Z_match: Z = float(Z_match.group(1))
+                if Z_match: Z = float(Z_match.group(1)) # algorytm dopisuje tu dane i przesyla do wektora points
 
-                # Dodajemy punkt przesunięty o offset Twojej drukarki
-                points.append([X, Y, Z - 62.0])
+                points.append([X, Y, Z - 62.0]) # punkty odczytanie z gcode + dodany offset dla drukarki 
                 
     return points
 
@@ -58,7 +57,7 @@ def load_texture(filename):
         return tex_id
 
 
-def calculate_normal(v1, v2, v3):
+def calculate_normal(v1, v2, v3):                       # liczymy normalna potrzbna do oswietlenia czesci drukarki
     u = [v2[0] - v1[0], v2[1] - v1[1], v2[2] - v1[2]]
     v = [v3[0] - v1[0], v3[1] - v1[1], v3[2] - v1[2]]
     nx = u[1] * v[2] - u[2] * v[1]
@@ -68,24 +67,24 @@ def calculate_normal(v1, v2, v3):
     if dlugosc == 0: return [0.0, 0.0, 1.0]         
     return [nx / dlugosc, ny / dlugosc, nz / dlugosc]
 
-def distance3d(p1, p2):
+def distance3d(p1, p2):                                                         # liczymy dystans rownaniem pitagorasa dla ukladu 3D
     return math.sqrt((p1[0]-p2[0])**2 + (p1[1]-p2[1])**2 + (p1[2]-p2[2])**2)
 
 def generuj_audio_id(audio_data):
-    """Konwertuje jednowymiarową tablicę NumPy na format 16-bit stereo Sound dla Pygame"""
-    odciecie = int(len(audio_data) * 0.05)
-    fade = np.linspace(0, 1, odciecie)
-    audio_data[:odciecie] *= fade
-    audio_data[-odciecie:] *= fade[::-1]
+    # Konwertujemy tablice na format 16 bitowy w u2 dla pygame w stereo
+    odciecie = int(len(audio_data) * 0.05)  # pobieramy 5% fali
+    fade = np.linspace(0, 1, odciecie)   #tworzymy rampe
+    audio_data[:odciecie] *= fade   # uzywamy rampy do podglasniania
+    audio_data[-odciecie:] *= fade[::-1] # uzywamy rampy do sciszania
     
-    audio_data = (audio_data / np.max(np.abs(audio_data)) * 20000).astype(np.int16)
-    stereo_data = np.vstack((audio_data, audio_data)).T
-    return pygame.sndarray.make_sound(stereo_data)
+    audio_data = (audio_data / np.max(np.abs(audio_data)) * 20000).astype(np.int16) # normalnizacjia najwiekszej liczby do 1 i -1 oraz konwetujemy na 16 bitow dla mixera i kodu u2
+    stereo_data = np.vstack((audio_data, audio_data)).T # tworzymy dzwiek stereo poprzez podzial maceirzy i transpozycje 
+    return pygame.sndarray.make_sound(stereo_data) # konwertuje tablicę w pamięci RAM na gotowy obiekt audio stereo
 
 def dzwiek_wolny_ruch(f_bazowa, duration=1.0, sample_rate=22050):
-    """Generuje chropowaty pomruk silnika krokowego o zadanej częstotliwości bazowej"""
-    t = np.linspace(0, duration, int(sample_rate * duration), False)
-    fala = np.sin(2 * np.pi * f_bazowa * t) + 0.4 * np.sin(4 * np.pi * f_bazowa * t)
-    szum = np.random.normal(0, 0.05, len(t))
+    #Generuje dzwiek silnika krokowego o zadanej częstotliwości 
+    t = np.linspace(0, duration, int(sample_rate * duration), False) # tworzymy wekktor bez wartosci duration na konciu 
+    fala = np.sin(2 * np.pi * f_bazowa * t) + 0.4 * np.sin(4 * np.pi * f_bazowa * t) # tworzenie dzwieku poprzez polaczenie dwoch sinusiod
+    szum = np.random.normal(0, 0.05, len(t)) # dodanie szumu o rozkladzie normalnym
     return generuj_audio_id(fala + szum)
 
