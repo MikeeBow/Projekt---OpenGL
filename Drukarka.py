@@ -15,6 +15,8 @@ light_ambient = [0.3, 0.3, 0.3, 1.0]
 light_diffuse = [0.9, 0.9, 0.9, 1.0]   
 light_specular = [0.5, 0.5, 0.5, 1.0]  
 
+# --- KLASA MODELU DRUKARKI ---
+
 class Drukarka:
     parts_config = {
         'Rama': ['VERTICES_Calosc', 'SURFACES_Rama', 0.05],       
@@ -33,75 +35,26 @@ class Drukarka:
         self.pos = pos if pos else [0.0, 0.0, 0.0]
         self.rot = rot if rot else [0.0, 0.0, 0.0]
 
-    VERTICES_Calosc = ((0,0,0), (100,0,0), (100,100,0), (0,100,0), (0,0,10), (100,0,10),
-                        (100,100,10), (0,100,10), (10,10,10), (90,10,10), (90,90,10), (10,90,10),
-                          (10,10,0), (90,10,0), (90,90,0), (10,90,0), (0,30,10), (10,30,10), (10,40,10),
-                            (0,40,10), (0,30,120), (10,30,120), (10,40,120), (0,40,120), (90,30,10), (100,30,10), (100,40,10), (90,40,10), (90,30,120), (100,30,120), (100,40,120), (90,40,120), (0,30,120), (100,30,120), (100,40,120), (0,40,120), (0,30,130), (100,30,130), (100,40,130), (0,40,130), (45,10,0), (55,10,0), (55,90,0), (45,90,0), (45,10,10), (55,10,10), (55,90,10), (45,90,10), (4,28,10), (6,28,10), (6,30,10), (4,30,10), (4,28,130), (6,28,130), (6,30,130), (4,30,130), (94,28,10), (96,28,10), (96,30,10), (94,30,10), (94,28,130), (96,28,130), (96,30,130), (94,30,130), (30,10,10), (32,10,10), (32,10,12), (30,10,12), (30,130,10), (32,130,10), (32,130,12), (30,130,12), (68,10,10), (70,10,10), (70,10,12), (68,10,12), (68,130,10), (70,130,10), (70,130,12), (70,130,12))
-    SURFACES_Rama = ((0,1,5,4), (1,2,6,5), (2,3,7,6), (3,0,4,7), (4,5,9,8), (5,6,10,9), (6,7,11,10), (7,4,8,11), (0,1,13,12), (1,2,14,13), (2,3,15,14), (3,0,12,15), (8,9,13,12), (9,10,14,13), (10,11,15,14), (11,8,12,15), (40,41,42,43), (40,41,45,44), (43,40,44,47), (43,47,46,42), (42,46,45,41), (44,45,46,47), (16,17,18,19), (16,17,21,20), (19,16,20,23), (19,23,22,18), (18,22,21,17), (20,21,22,23), (24,25,26,27), (24,25,29,28), (27,24,28,31), (27,31,30,26), (26,30,29,25), (28,29,30,31), (32,33,34,35), (32,33,37,36), (35,32,36,39), (35,39,38,34), (34,38,37,33), (36,37,38,39), (48,49,50,51), (52,53,54,55), (48,49,53,52), (49,50,54,53), (50,51,55,54), (51,48,52,55), (56,57,58,59), (60,61,62,63), (56,57,61,60), (57,58,62,61), (58,59,63,62), (59,56,60,63), (64,65,66,67), (68,69,70,71), (64,65,69,68), (65,66,70,69), (66,67,71,70), (67,64,68,71), (72,73,74,75), (76,77,78,79), (72,73,77,76), (73,74,78,77), (74,75,79,78), (75,72,76,79))
-    VERTICES_osx = (
-        # Belka główna
-        (0,40,90), (100,40,90), (100,50,90), (0,50,90),
-        (0,40,100), (100,40,100), (100,50,100), (0,50,100),
+    # Usunięto ostatnie punkty (od indeksu 64 do 79), które tworzyły długie szyny w osi Y
+    VERTICES_Calosc = ((0,0,0), (100,0,0), (100,100,0), (0,100,0), (0,0,10), (100,0,10), (100,100,10), (0,100,10), (10,10,10), (90,10,10), (90,90,10), (10,90,10), (10,10,0), (90,10,0), (90,90,0), (10,90,0), (0,30,10), (10,30,10), (10,40,10), (0,40,10), (0,30,120), (10,30,120), (10,40,120), (0,40,120), (90,30,10), (100,30,10), (100,40,10), (90,40,10), (90,30,120), (100,30,120), (100,40,120), (90,40,120), (0,30,120), (100,30,120), (100,40,120), (0,40,120), (0,30,130), (100,30,130), (100,40,130), (0,40,130), (45,10,0), (55,10,0), (55,90,0), (45,90,0), (44,10,10), (55,10,10), (55,90,10), (45,90,10), (4,28,10), (6,28,10), (6,30,10), (4,30,10), (4,28,130), (6,28,130), (6,30,130), (4,30,130), (94,28,10), (96,28,10), (96,30,10), (94,30,10), (94,28,130), (96,28,130), (96,30,130), (94,30,130))
 
-        # Prowadnice
-        (0,50,93), (100,50,93), (100,52,93), (0,52,93),
-        (0,50,97), (100,50,97), (100,52,97), (0,52,97),
-
-        # Lewy uchwyt Z (wydłużony)
-        (-4,24,85),
-        (14,24,85),
-        (14,42,85),
-        (-4,42,85),
-
-        (-4,24,122),
-        (14,24,122),
-        (14,42,122),
-        (-4,42,122),
-
-        # Prawy uchwyt Z (wydłużony)
-        (86,24,85),
-        (104,24,85),
-        (104,42,85),
-        (86,42,85),
-
-        (86,24,122),
-        (104,24,122),
-        (104,42,122),
-        (86,42,122)
-    )
-    SURFACES_osx = (
-        (0,1,2,3),
-        (4,5,6,7),
-        (0,1,5,4),
-        (3,2,6,7),
-        (1,2,6,5),
-        (0,3,7,4),
-
-        (8,9,10,11),
-        (12,13,14,15),
-        (8,9,13,12),
-        (11,10,14,15),
-        (9,10,14,13),
-        (8,11,15,12),
-
-        (16,17,18,19),
-        (20,21,22,23),
-        (16,17,21,20),
-        (19,18,22,23),
-        (17,18,22,21),
-        (16,19,23,20),
-
-        (24,25,26,27),
-        (28,29,30,31),
-        (24,25,29,28),
-        (27,26,30,31),
-        (25,26,30,29),
-        (24,27,31,28)
-    )
-    VERTICES_bed = ((15,15,15), (85,15,15), (85,85,15), (15,85,15), (15,15,20), (85,15,20), (85,85,20), (15,85,20), (45,40,10), (55,40,10), (55,60,10), (45,60,10), (45,40,15), (55,40,15), (55,60,15), (45,60,15), (28,35,12), (34,35,12), (34,65,12), (28,65,12), (28,35,15), (34,35,15), (34,65,15), (28,65,15), (66,35,12), (72,35,12), (72,65,12), (66,65,12), (66,35,15), (72,35,15), (72,65,15), (66,65,15))
-    SURFACES_bed = ((0,1,2,3), (0,1,5,4), (3,0,4,7), (3,7,6,2), (2,6,5,1), (4,5,6,7), (8,9,10,11), (8,9,13,12), (11,8,12,15), (11,15,14,10), (10,14,13,9), (12,13,14,15), (16,17,18,19), (20,21,22,23), (16,17,21,20), (17,18,22,21), (18,19,23,22), (19,16,20,23), (24,25,26,27), (28,29,30,31), (24,25,29,28), (25,26,30,29), (26,27,31,30), (27,24,28,31))
+    # Usunięto ostatnie 4 powierzchnie, które rysowały te listwy
+    SURFACES_Rama = ((0,1,5,4), (1,2,6,5), (2,3,7,6), (3,0,4,7), (4,5,9,8), (5,6,10,9), (6,7,11,10), (7,4,8,11), (0,1,13,12), (1,2,14,13), (2,3,15,14), (3,0,12,15), (8,9,13,12), (9,10,14,13), (10,11,15,14), (11,8,12,15), (40,41,42,43), (40,41,45,44), (43,40,44,47), (43,47,46,42), (42,46,45,41), (44,45,46,47), (16,17,18,19), (16,17,21,20), (19,16,20,23), (19,23,22,18), (18,22,21,17), (20,21,22,23), (24,25,26,27), (24,25,29,28), (27,24,28,31), (27,31,30,26), (26,30,29,25), (28,29,30,31), (32,33,34,35), (32,33,37,36), (35,32,36,39), (35,39,38,34), (34,38,37,33), (36,37,38,39), (48,49,50,51), (52,53,54,55), (48,49,53,52), (49,50,54,53), (50,51,55,54), (51,48,52,55), (56,57,58,59), (60,61,62,63), (56,57,61,60), (57,58,62,61), (58,59,63,62), (59,56,60,63))
+    
+    VERTICES_osx = ((0,40,90), (100,40,90), (100,50,90), (0,50,90), (0,40,100), (100,40,100), (100,50,100), (0,50,100), (0,50,93), (100,50,93), (100,52,93), (0,52,93), (0,50,97), (100,50,97), (100,52,97), (0,52,97), (-2,26,85), (12,26,85), (12,40,85), (-2,40,85), (-2,26,105), (12,26,105), (12,40,105), (-2,40,105), (88,26,85), (102,26,85), (102,40,85), (88,40,85), (88,26,105), (102,26,105), (102,40,105), (88,40,105))
+    SURFACES_osx = ((0,1,2,3), (4,5,6,7), (0,1,5,4), (3,2,6,7), (1,2,6,5), (0,3,7,4), (8,9,10,11), (12,13,14,15), (8,9,13,12), (11,10,14,15), (9,10,14,13), (8,11,15,12), (16,17,18,19), (20,21,22,23), (16,17,21,20), (19,18,22,23), (17,18,22,21), (16,19,23,20), (24,25,26,27), (28,29,30,31), (24,25,29,28), (27,26,30,31), (25,26,30,29), (24,27,31,28))
+    
+    # Usunięto punkty 16-31 (czarne profile)
+    VERTICES_bed = ((15,15,15), (85,15,15), (85,85,15), (15,85,15), (15,15,20), (85,15,20), (85,85,20), (15,85,20), (45,40,10), (55,40,10), (55,60,10), (45,60,10), (45,40,15), (55,40,15), (55,60,15), (45,60,15))
+    # Usunięto powierzchnie generujące profile
+    SURFACES_bed = ((0,1,2,3), (0,1,5,4), (3,0,4,7), (3,7,6,2), (2,6,5,1), (4,5,6,7), (8,9,10,11), (8,9,13,12), (11,8,12,15), (11,15,14,10), (10,14,13,9), (12,13,14,15))
+    
     VERTICES_Extruder = ((-10,50,97.5), (10,50,97.5), (10,53,97.5), (-10,53,97.5), (-10,50,110), (10,50,110), (10,53,110), (-10,53,110), (-10,50,86), (10,50,86), (10,53,86), (-10,53,86), (-10,50,92.5), (10,50,92.5), (10,53,92.5), (-10,53,92.5), (-12,53,86), (12,53,86), (12,65,86), (-12,65,86), (-12,53,110), (12,53,110), (12,65,110), (-12,65,110), (-4,58,86), (4,58,86), (4,62,86), (-4,62,86), (0,60,82))
     SURFACES_Extruder = ((0,1,2,3), (4,5,6,7), (0,1,5,4), (3,2,6,7), (1,2,6,5), (0,3,7,4), (8,9,10,11), (12,13,14,15), (8,9,13,12), (11,10,14,15), (9,10,14,13), (8,11,15,12), (16,17,18,19), (20,21,22,23), (16,17,21,20), (19,18,22,23), (17,18,22,21), (16,19,23,20), (24,25,28), (25,26,28), (26,27,28), (27,24,28))
+
+    VERTICES_Stol = ((-150,-50,-5), (250,-50,-5), (250,150,-5), (-150,150,-5), (-150,-50,0), (250,-50,0), (250,150,0), (-150,150,0))
+    SURFACES_Stol = ((0,1,2,3), (4,5,6,7), (0,1,5,4), (2,3,7,6), (1,2,6,5), (0,3,7,4))
+
     VERTICES_Stol = (
     # Blat
     (-150,-50,-5), (250,-50,-5), (250,150,-5), (-150,150,-5),
@@ -184,10 +137,11 @@ class Drukarka:
         (2,3,7,6),
         (3,0,4,7)
     )
+
     def draw(self):
         glPushMatrix()
         glTranslatef(*self.pos)
-        glRotatef(self.rot[0], 1, 0, 0)
+        glRotatef(self.rot[0], 1, 0, 0) 
         glRotatef(self.rot[1], 0, 1, 0)
         glRotatef(self.rot[2], 0, 0, 1)
 
@@ -225,9 +179,11 @@ class Drukarka:
         glDisable(GL_TEXTURE_2D)
         glPopMatrix()
 
+
+# --- GŁÓWNA PĘTLA PROGRAMU ---
+
 def main():
     pygame.init()
-    # Inicjalizacja miksera audio z obsługą wielu niezależnych kanałów
     pygame.mixer.set_num_channels(8)
     pygame.mixer.init(frequency=22050, size=-16, channels=2, buffer=512)
     
@@ -248,13 +204,13 @@ def main():
     
     # Inicjalizacja modeli
     rama = Drukarka('Rama', tekstura_metalu)
-    os_x = Drukarka('Oś X', tekstura_belki, pos=[0.0, 0.0, -8])
+    os_x = Drukarka('Oś X', tekstura_belki)
     bed = Drukarka('Stół', tekstura_stolu)
-    extruder = Drukarka('Ekstruder', tekstura_ekstrudera,pos=[50.0, 0.0, 0.0])
+    extruder = Drukarka('Ekstruder', tekstura_ekstrudera, pos=[50.0, 0.0, 0.0])
     stol = Drukarka('Stol', tekstura_drewna)
     podloga = Drukarka('Podloga', tekstura_podlogi)
     
-    # Otwarcie zaawansowanego renderowania
+    # Konfiguracja renderowania
     glEnable(GL_DEPTH_TEST)
     glEnable(GL_LIGHTING)
     glEnable(GL_NORMALIZE)   
@@ -278,7 +234,7 @@ def main():
     auto_indeks_punktu = 0
     predkosc_mnoznik = 1.0  
 
-    # --- PRZYGOTOWANIE SYSTEMU DŹWIĘKOWEGO DLA OSI ---
+    # Dźwięki
     print("Generowanie brzmień osi do pamięci RAM...")
     dzwieki_osi = {
         "X": {
@@ -298,14 +254,13 @@ def main():
     punkty_gcode = []
     try:
         punkty_gcode = load_gcode_file(file_name)
-        print(f"Pomyślnie załadowano plik G-code z dysku. Znaleziono punktów: {len(punkty_gcode)}")
+        print(f"Pomyślnie załadowano plik G-code. Znaleziono punktów: {len(punkty_gcode)}")
     except FileNotFoundError:
         print(f"BŁĄD: Nie znaleziono pliku o nazwie '{file_name}'! Autodruk z G-code nie zadziała.")
 
     clock = pygame.time.Clock()
     
     while True:
-        # Zapisujemy pozycję osi z poprzedniej klatki, aby wykryć ich ruch
         stary_x = extruder.pos[0]
         stary_y = bed.pos[1]
         stary_z = os_x.pos[2]
@@ -335,19 +290,25 @@ def main():
         if keys[K_g]: kolor_filamentu = [0.0, 1.0, 0.0]  
         if keys[K_b]: kolor_filamentu = [0.0, 0.0, 1.0]  
         
+        # Sterowanie prędkością (Klawiatura numeryczna + i -)
         if keys[K_KP_PLUS]: 
-            predkosc_mnoznik += 0.5
+            predkosc_mnoznik += 0.1
+            if predkosc_mnoznik > 100.0: predkosc_mnoznik = 100.0
+            print(f"Mnożnik prędkości: {predkosc_mnoznik}x")
         if keys[K_KP_MINUS]: 
-            predkosc_mnoznik -= 0.5
-            if predkosc_mnoznik < 0.1: predkosc_mnoznik = 0.1
+            predkosc_mnoznik -= 1.0
+            if predkosc_mnoznik < 1.0: predkosc_mnoznik = 1.0
+            print(f"Mnożnik prędkości: {predkosc_mnoznik}x")
         
         if keys[K_4] and not auto_drukowanie and len(punkty_gcode) > 0:
             auto_drukowanie = True
             auto_indeks_punktu = 0
-            
+            extruder.pos[0] = punkty_gcode[0][0]
+            bed.pos[1] = punkty_gcode[0][1]
+            os_x.pos[2] = punkty_gcode[0][2]
 
         # Ręczne sterowanie osiami
-        if keys[K_UP] and os_x.pos[2] < -2: os_x.pos[2] += 0.5
+        if keys[K_UP] and os_x.pos[2] < 20: os_x.pos[2] += 0.5
         if keys[K_DOWN] and os_x.pos[2] > -62.0: os_x.pos[2] -= 0.5
 
         if tryb_sterowania == 1:
@@ -357,75 +318,71 @@ def main():
             if keys[K_LEFT] and bed.pos[1] > -20: bed.pos[1] -= 0.5
             if keys[K_RIGHT] and bed.pos[1] < 40: bed.pos[1] += 0.5
 
-        # Autodrukowanie z pliku G-code
+        # --- ZMODYFIKOWANA, SZYBKA PĘTLA AUTODRUKOWANIA ---
         if auto_drukowanie:
-            cel = punkty_gcode[auto_indeks_punktu]  
-            predkosc = 1.5 * predkosc_mnoznik
+            # Całkowity budżet ruchu (dystans) do wykorzystania w tej pojedynczej klatce obrazu
+            dystans_do_pokonania = 2.0 * predkosc_mnoznik 
             
-            dotarl_x = False
-            dotarl_y = False
-            dotarl_z = False
-            
-            if abs(extruder.pos[0] - cel[0]) <= predkosc: 
-                extruder.pos[0] = cel[0]
-                dotarl_x = True
-            else:
-                extruder.pos[0] += predkosc if extruder.pos[0] < cel[0] else -predkosc
+            while dystans_do_pokonania > 0 and auto_drukowanie:
+                cel = punkty_gcode[auto_indeks_punktu]
                 
-            if abs(bed.pos[1] - cel[1]) <= predkosc:
-                bed.pos[1] = cel[1]
-                dotarl_y = True
-            else:
-                bed.pos[1] += predkosc if bed.pos[1] < cel[1] else -predkosc
+                # Obliczanie wektora kierunku w 3D
+                dx = cel[0] - extruder.pos[0]
+                dy = cel[1] - bed.pos[1]
+                dz = cel[2] - os_x.pos[2]
                 
-            if abs(os_x.pos[2] - cel[2]) <= predkosc:
-                os_x.pos[2] = cel[2]
-                dotarl_z = True
-            else:
-                os_x.pos[2] += predkosc if os_x.pos[2] < cel[2] else -predkosc
+                odleglosc_do_celu = math.sqrt(dx**2 + dy**2 + dz**2)
                 
-            if dotarl_x and dotarl_y and dotarl_z:
-                auto_indeks_punktu += 1
-                if auto_indeks_punktu >= len(punkty_gcode):
-                    auto_drukowanie = False
-                    if aktualna_sciezka:
-                        wydrukowane_sciezki.append((aktualna_sciezka, kolor_filamentu.copy()))
-                        aktualna_sciezka = []
+                if odleglosc_do_celu <= dystans_do_pokonania:
+                    # Jeśli cel jest bliżej niż limit ruchu w tej klatce, teleportuj tam osie 
+                    extruder.pos[0] = cel[0]
+                    bed.pos[1] = cel[1]
+                    os_x.pos[2] = cel[2]
+                    
+                    # Odejmij zużyty dystans i weź kolejny punkt z g-code (wciąż w tej samej klatce!)
+                    dystans_do_pokonania -= odleglosc_do_celu
+                    auto_indeks_punktu += 1
+                    
+                    if auto_indeks_punktu >= len(punkty_gcode):
+                        auto_drukowanie = False
+                        if aktualna_sciezka:
+                            wydrukowane_sciezki.append((aktualna_sciezka, kolor_filamentu.copy()))
+                            aktualna_sciezka = []
+                else:
+                    # Przemieszczenie o wyliczony wektor, gdy cel jest dalej niż budżet na klatkę
+                    proporcja = dystans_do_pokonania / odleglosc_do_celu
+                    extruder.pos[0] += dx * proporcja
+                    bed.pos[1] += dy * proporcja
+                    os_x.pos[2] += dz * proporcja
+                    
+                    dystans_do_pokonania = 0  # Koniec budżetu na tę klatkę
 
-        # --- DYNAMICZNA LOGIKA IF DLA DŹWIĘKÓW KAŻDEJ OSI ---
-        # Sprawdzamy, czy aktualna współrzędna różni się od współrzędnej z poprzedniej klatki
+        # Logika dźwięków
         ruch_x = (extruder.pos[0] != stary_x)
         ruch_y = (bed.pos[1] != stary_y)
         ruch_z = (os_x.pos[2] != stary_z)
 
-        # OŚ X (Ekstruder)
         if ruch_x:
             if not dzwieki_osi["X"]["channel"].get_busy():
                 dzwieki_osi["X"]["channel"].play(dzwieki_osi["X"]["sound"], loops=-1)
         else:
-            if dzwieki_osi["X"]["channel"].get_busy():
-                dzwieki_osi["X"]["channel"].stop()
+            if dzwieki_osi["X"]["channel"].get_busy(): dzwieki_osi["X"]["channel"].stop()
 
-        # OŚ Y (Stół)
         if ruch_y:
             if not dzwieki_osi["Y"]["channel"].get_busy():
                 dzwieki_osi["Y"]["channel"].play(dzwieki_osi["Y"]["sound"], loops=-1)
         else:
-            if dzwieki_osi["Y"]["channel"].get_busy():
-                dzwieki_osi["Y"]["channel"].stop()
+            if dzwieki_osi["Y"]["channel"].get_busy(): dzwieki_osi["Y"]["channel"].stop()
 
-        # OŚ Z (Belka osi X w pionie)
         if ruch_z:
             if not dzwieki_osi["Z"]["channel"].get_busy():
                 dzwieki_osi["Z"]["channel"].play(dzwieki_osi["Z"]["sound"], loops=-1)
         else:
-            if dzwieki_osi["Z"]["channel"].get_busy():
-                dzwieki_osi["Z"]["channel"].stop()
-
+            if dzwieki_osi["Z"]["channel"].get_busy(): dzwieki_osi["Z"]["channel"].stop()
 
         # Logika rysowania filamentu
         if keys[K_SPACE] or auto_drukowanie:
-            pozycja_dyszy_swiat_x = extruder.pos[0] - 0
+            pozycja_dyszy_swiat_x = extruder.pos[0] + 0.0
             pozycja_dyszy_swiat_y = 60.0  
             pozycja_dyszy_swiat_z = extruder.pos[2] + 82.0  
 
@@ -501,8 +458,8 @@ def main():
         os_x.draw()
         extruder.draw()
         bed.draw()
-        podloga.draw()
         stol.draw()
+        podloga.draw()
 
         # Rysowanie linii filamentu
         glDisable(GL_LIGHTING)  
