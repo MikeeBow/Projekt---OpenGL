@@ -1,0 +1,85 @@
+\documentclass[11pt, a4paper]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{polski}
+\usepackage{geometry}
+\geometry{a4paper, margin=2.5cm}
+\usepackage{hyperref}
+\usepackage{titlesec}
+\usepackage{graphicx} % Pakiet wymagany do obsługi grafiki
+\usepackage{xcolor}
+
+\title{\textbf{Sprawozdanie z realizacji projektu}\\Wizualizacja pracy drukarki 3D}
+\author{Dokumentacja projektowa}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\section{Wstęp i założenia projektu}
+Celem projektu było stworzenie animowanego modelu trójwymiarowego prezentującego działanie urządzenia sterowanego numerycznie, w tym przypadku drukarki 3D. Aplikacja została zrealizowana w języku Python z wykorzystaniem bibliotek \texttt{pygame} (do obsługi okna, wejścia i dźwięku), \texttt{PyOpenGL} (do zaawansowanego renderowania grafiki 3D) oraz \texttt{numpy} (do zaawansowanych obliczeń matematycznych i syntezy audio). Projekt implementuje również mechanizmy sterowania ręcznego oraz programowego za pomocą plików G-code.
+
+\section{Architektura i struktura programu (Obiektowość)}
+Program został napisany z zachowaniem paradygmatu programowania obiektowego, co ułatwia zarządzanie kodem i jego skalowalność. Kod podzielono logicznie na dwa pliki:
+\begin{itemize}
+    \item \textbf{\texttt{Drukarka.py}} -- zawiera główną pętlę programu oraz definicję klasy \texttt{Drukarka}. Klasa ta hermetyzuje dane o wierzchołkach (VERTICES), powierzchniach (SURFACES) i właściwościach tekstur dla poszczególnych elementów drukarki (np. Rama, Oś X, Stół, Ekstruder). Metoda \texttt{draw()} obsługuje macierze transformacji (translacja, rotacja) oraz nakładanie tekstur przy użyciu OpenGL.
+    \item \textbf{\texttt{funkcje.py}} -- moduł pomocniczy zawierający funkcje operujące na plikach (wczytywanie i parsowanie G-code, ładowanie tekstur) oraz funkcje matematyczne (obliczanie wektorów normalnych powierzchni do prawidłowego oświetlenia, obliczanie dystansu w przestrzeni 3D).
+\end{itemize}
+
+\section{Jakość i estetyka wizualizacji}
+Grafika generowana jest przy użyciu akceleracji sprzętowej poprzez bibliotekę OpenGL. Zaimplementowano następujące techniki podnoszące estetykę:
+\begin{itemize}
+    \item \textbf{Oświetlenie sceny:} Zastosowano zdefiniowane źródła światła (ambient, diffuse, specular) oraz dynamiczne wyliczanie wektorów normalnych dla każdego poligonu, co daje realistyczny efekt rzucania cieni i cieniowania gładkiego (\texttt{GL\_SMOOTH}).
+    \item \textbf{Teksturowanie:} Powierzchnie poszczególnych elementów zostały pokryte adekwatnymi teksturami (metal, drewno, podłoga), z włączonym mapowaniem środowiskowym (\texttt{GL\_MODULATE}).
+    \item \textbf{Przestrzeń i kamera:} Użytkownik obserwuje scenę z perspektywy (z rzutowaniem perspektywicznym \texttt{gluPerspective}), z zachowaniem testu głębokości (\texttt{GL\_DEPTH\_TEST}).
+\end{itemize}
+
+% === MIEJSCE NA OBRAZEK 1: GLÓWNE OKNO PROGRAMU ===
+\begin{figure}[htbp]
+    \centering
+    % Zmień "drukarka_model.png" na nazwę swojego pliku graficznego
+    \includegraphics[width=0.75\textwidth]{drukarka_model.png} 
+    \caption{Wizualizacja trójwymiarowego modelu drukarki 3D w środowisku OpenGL.}
+    \label{fig:model_drukarki}
+\end{figure}
+
+\section{Ergonomia i sterowanie (Interfejs)}
+Interfejs użytkownika jest intuicyjny i w pełni obsługiwany z poziomu klawiatury i myszy:
+\begin{itemize}
+    \item \textbf{Kamera:} Obracanie sceny następuje poprzez kliknięcie i przeciągnięcie lewego przycisku myszy. Przybliżanie i oddalanie zrealizowano za pomocą rolki myszy.
+    \item \textbf{Ręczne sterowanie osiami:} Klawisze strzałek góra/dół odpowiadają za ruch w osi Z. Przełączanie między aktywnymi osiami (Oś X ekstrudera, Oś Y stołu) realizowane jest klawiszami '1' i '2', a ich ruch wykonuje się strzałkami lewo/prawo.
+    \item \textbf{Parametry druku:} Klawisze R, G, B zmieniają kolor wirtualnego filamentu, natomiast klawisze numeryczne + i - modyfikują prędkość symulacji.
+\end{itemize}
+
+\section{Programowe sterowanie modelem (Autodruk)}
+Najbardziej złożonym elementem jest parser G-code. Funkcja \texttt{load\_gcode\_file} wyciąga współrzędne osi X, Y, Z z komend G0 i G1 za pomocą wyrażeń regularnych. Po naciśnięciu klawisza '4', drukarka rozpoczyna autonomiczną pracę:
+\begin{itemize}
+    \item Obliczany jest wektor odległości 3D między aktualną pozycją głowicy a celem.
+    \item Ruch jest interpolowany na podstawie budżetu odległości do pokonania w pojedynczej klatce obrazu, przy uwzględnieniu wybranego mnożnika prędkości. Gwarantuje to płynność ruchu niezależnie od rozłożenia punktów G-code.
+\end{itemize}
+
+\section{Sprawność kodu i zaawansowane metody}
+W programie zaimplementowano zoptymalizowane podejście do weryfikacji i generowania ścieżki wydruku, działające jak uproszczony system wykrywania kolizji:
+\begin{itemize}
+    \item Głowica wirtualna oblicza, czy znajduje się nad obszarem roboczym.
+    \item Dokonywana jest matematyczna ewaluacja, czy filament jest "kładziony" na powierzchni stołu, czy na poprzednich warstwach wydruku. System nie pozwala na rysowanie w powietrzu bez podparcia, imitując rzeczywiste prawa fizyki obowiązujące przy druku FDM.
+\end{itemize}
+
+% === MIEJSCE NA OBRAZEK 2: PROCES DRUKOWANIA / FILAMENT ===
+\begin{figure}[htbp]
+    \centering
+    % Zmień "proces_druku.png" na nazwę swojego pliku graficznego
+    \includegraphics[width=0.75\textwidth]{proces_druku.png}
+    \caption{Generowanie wirtualnego filamentu na stole roboczym na podstawie kodu G-code.}
+    \label{fig:proces_druku}
+\end{figure}
+
+\section{Dodatkowe elementy (Synteza Audio)}
+Znaczącym i ponadstandardowym elementem projektu jest proceduralnie generowany dźwięk. Zamiast odtwarzać statyczne pliki audio, program korzysta z biblioteki \texttt{numpy} do matematycznego wygenerowania chropowatego pomruku z szumem Gaussa (symulacja pracy silników krokowych). Każda z osi (X, Y, Z) posiada przypisany do siebie oddzielny kanał \texttt{pygame.mixer.Channel} i aktywuje dźwięk o odpowiedniej częstotliwości bazowej wyłącznie w momencie wykrycia różnicy położenia w danej klatce obrazu.
+
+\section{Podsumowanie}
+Stworzony projekt kompleksowo i zgodnie z założeniami realizuje problem wizualizacji pracy drukarki 3D. Wykorzystanie technik programowania obiektowego, złożonej matematyki w środowisku OpenGL do obsługi ruchów 3D, zaimplementowanie parsera G-code oraz innowacyjne podejście do generowania dźwięku sprawiają, że aplikacja jest wydajna, czytelna pod kątem kodu i stanowi doskonały model symulacyjny.
+
+\end{document}
