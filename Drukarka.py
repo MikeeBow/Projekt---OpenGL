@@ -2,7 +2,6 @@ import pygame
 from pygame.locals import *
 from OpenGL.GL import *
 from OpenGL.GLU import *
-import sys 
 import math
 import re #potrzebne do obsługi pliku gcode
 import numpy as np
