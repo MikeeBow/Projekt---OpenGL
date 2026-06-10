@@ -2,9 +2,9 @@ import pygame
 from pygame.locals import *
 from OpenGL.GL import *
 from OpenGL.GLU import *
-import sys
+import sys 
 import math
-import re
+import re #potrzebne do obsługi pliku gcode
 import numpy as np
 from funkcje import *
 
@@ -206,7 +206,7 @@ def main():
     distance = -35  # stan kamery
     mouse_down = False  # flaga mowiaca o braku wcisnietego przycisku myszy   
 
-    tryb_sterowania = 1 # omyslny tryb sterowania
+    tryb_sterowania = 1 # domyslny tryb sterowania
     kolor_filamentu = [0.0, 0.7, 1.0]  # domyslne parametry filamentu kolor
     wydrukowane_sciezki = [] # sciezki historyczne 
     aktualna_sciezka = []     # sciezka aktualnie rysowana
@@ -271,9 +271,9 @@ def main():
         if keys[K_1]: tryb_sterowania = 1
         if keys[K_2]: tryb_sterowania = 2 # przelaczenie tryby sterwoania 
 
-        if keys[K_r]: kolor_filamentu = [1.0, 0.0, 0.0]  
-        if keys[K_g]: kolor_filamentu = [0.0, 1.0, 0.0]  
-        if keys[K_b]: kolor_filamentu = [0.0, 0.0, 1.0]  # przelaczenie koloru filamentu
+        if keys[K_r] and not(keys[K_SPACE] or auto_drukowanie) : kolor_filamentu = [1.0, 0.0, 0.0]  
+        if keys[K_g] and not(keys[K_SPACE] or auto_drukowanie): kolor_filamentu = [0.0, 1.0, 0.0]  
+        if keys[K_b] and not(keys[K_SPACE] or auto_drukowanie): kolor_filamentu = [0.0, 0.0, 1.0]  # przelaczenie koloru filamentu
         
         # Sterowanie prędkością + zwieksza, - zmienjsza 
         if keys[K_KP_PLUS]: 
@@ -302,11 +302,10 @@ def main():
             if keys[K_RIGHT] and bed.pos[1] < 40: bed.pos[1] += 0.5
 
         # Autodrukowanie
-        # --- ZMODYFIKOWANA, PŁYNNA PĘTLA AUTODRUKOWANIA ---
         if auto_drukowanie:
             # Ustalamy budżet ruchu na tę klatkę obrazu:
             if auto_indeks_punktu == 0:
-                # POWOLNY DOJAZD: Jeśli jedziemy do pierwszego punktu, jedź bardzo wolno (np. prędkość 0.2)
+                # Jeśli jedziemy do pierwszego punktu, jedź bardzo wolno (np. prędkość 0.2)
                 # Ta wartość nie jest mnożona przez predkosc_mnoznik, żeby dojazd zawsze był powolny i płynny.
                 dystans_do_pokonania = 0.2  
             else:
@@ -374,12 +373,14 @@ def main():
         else:
             if dzwieki_osi["Z"]["channel"].get_busy(): dzwieki_osi["Z"]["channel"].stop()
 
-        # Logika rysowania filamentu
+        # logika rysowania filamentu
         if keys[K_SPACE] or auto_drukowanie:
+            #obliczamy rzeczywistą lokalizację końcówki dyszy extrudera
             pozycja_dyszy_swiat_x = extruder.pos[0] + 0.0
             pozycja_dyszy_swiat_y = 60.0  
             pozycja_dyszy_swiat_z = extruder.pos[2] + 82.0  
 
+            #graicę stołu w których przy spełnieniu odpowiednich warunków da się rysować 
             stol_min_x, stol_max_x = 15.0, 85.0
             stol_min_y, stol_max_y = 15.0 + bed.pos[1], 85.0 + bed.pos[1]
             stol_poziom_z = 20.0  
@@ -390,21 +391,27 @@ def main():
             na_powierzchni_stolu = nad_stolem and (abs(pozycja_dyszy_swiat_z - stol_poziom_z) <= 1.5)
             w_powietrzu_ale_na_plastiku = False
             w_powietrzu_ale_pod_plastikiem = False
+            #przeliczenie współrzędnyej z uwagi na ruch stołu drukarki 
             pozycja_wzgledna_y = 60.0 - bed.pos[1]
             
+            #uzupełnienie listy wydrukowanych ścieżek, plus dodanie aktualnej ścieżki 
             wszystkie_do_sprawdzenia = wydrukowane_sciezki.copy()
             if aktualna_sciezka: wszystkie_do_sprawdzenia.append(aktualna_sciezka)
 
             for element in wszystkie_do_sprawdzenia:
+                #pobranie danych nie zależne of formatu aktualna_sciezka/wydrukownae_sciezki  
                 sciezka_punkty = element[0] if isinstance(element, tuple) else element
                 for pkt in sciezka_punkty:
                     dx = pozycja_dyszy_swiat_x - pkt[0]
                     dy = pozycja_wzgledna_y - pkt[1]
                     dz = pozycja_dyszy_swiat_z - pkt[2]
+                    #czy rysujemy(jesteśmy) na plastiku?
                     if (dx**2 + dy**2) < 2.0 and (0.0 <= dz <= 2.0):
                         w_powietrzu_ale_na_plastiku = True; break
+                    #czy rysujemy(jesteśmy) w bok od plastiku?
                     if abs(dz) <= 1.5 and (dx**2 + dy**2) < 2.0:
                         w_powietrzu_ale_na_plastiku = True; break
+                    #czy rysujemy(jesteśmy) pod plastkiem?
                     if (dx**2 + dy**2) < 2.0 and (-2.0 <= dz <= 0.0):
                         w_powietrzu_ale_pod_plastikiem = True; break
                 if w_powietrzu_ale_na_plastiku or w_powietrzu_ale_pod_plastikiem: break
@@ -418,14 +425,17 @@ def main():
                     dystans = (pozycja_dyszy_wzgledna[0] - ostatni_punkt[0])**2 + \
                               (pozycja_dyszy_wzgledna[1] - ostatni_punkt[1])**2 + \
                               (pozycja_dyszy_wzgledna[2] - ostatni_punkt[2])**2
+                    #dodanie nowego punktu do listy tylko wtedy jak przesunimey się odpowiednio daleko 
                     if dystans > 0.5:
                         aktualna_sciezka.append(pozycja_dyszy_wzgledna)
             else:
                 if aktualna_sciezka:
+                    #przekazanie danych do listy punkty wraz z kolorem filamentu 
                     wydrukowane_sciezki.append((aktualna_sciezka, kolor_filamentu.copy()))
                     aktualna_sciezka = []
         else:
             if aktualna_sciezka:
+                #zabezpieczednie 
                 wydrukowane_sciezki.append((aktualna_sciezka, kolor_filamentu.copy()))
                 aktualna_sciezka = []
 
@@ -435,19 +445,24 @@ def main():
         glLoadIdentity() # resetuje maceirz obrotu do maceirzy jednostkowej oraz usuwa wszystkie transformacje z poprzedniej kaltki i przywraca punkt odniesienia do srodka swiata
         
         glTranslatef(0, -3, distance) # ustawia kamere tak jak zadal uzytkownik
+        #pochylenie kamery 
         glRotatef(rotate_x, 1, 0, 0) 
         glRotatef(rotate_y, 0, 0, 1) 
 
         glLightfv(GL_LIGHT0, GL_POSITION, [50.0, 50.0, 300.0, 1.0]) # definiuje pozycje swiatla. Wpsolczynnik 1.0 mowi ze jest to swiatlo sferyczne podobne do slonca
 
         glPushMatrix()
+        #przeskalowanie świata
         glScalef(0.1, 0.1, 0.1)
         glTranslatef(-50, -50, -5) 
         
+        #extruder porusza się z osią Z
         extruder.pos[2] = os_x.pos[2]  
+        # ruch pród/tył odbywa się tylko za pomocą stołu drukarki 
         os_x.pos[1] = 0.0
         extruder.pos[1] = 0.0
         
+        #narysowanie elemntów drukarki 
         rama.draw()
         os_x.draw()
         extruder.draw()
@@ -455,11 +470,11 @@ def main():
         stol.draw()
         podloga.draw()
 
-        # Rysowanie linii filamentu
-        glDisable(GL_LIGHTING)  
+        #rysowanie linii filamentu
+        glDisable(GL_LIGHTING)  # wyłaczeie świtła dla filamentu, żeby kolor był jednolity i nie zależał od oświetlenia
         glLineWidth(6.0)        
         glPushMatrix()
-        glTranslatef(0.0, bed.pos[1], 0.0)
+        glTranslatef(0.0, bed.pos[1], 0.0)#filament porusza sie razem ze stołem, bo przeciez na nim jest drukowany
 
         for sciezka, kolor_sciezki in wydrukowane_sciezki:
             glColor3fv(kolor_sciezki)
@@ -477,7 +492,7 @@ def main():
         glEnable(GL_LIGHTING) 
         glPopMatrix() 
         
-        pygame.display.flip()
+        pygame.display.flip()#orzekazanie nowej klatki dla użytkownika
         clock.tick(60)
 
 if __name__ == "__main__":
