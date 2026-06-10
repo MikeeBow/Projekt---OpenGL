@@ -87,4 +87,3 @@ def dzwiek_wolny_ruch(f_bazowa, duration=1.0, sample_rate=22050):
     fala = np.sin(2 * np.pi * f_bazowa * t) + 0.4 * np.sin(4 * np.pi * f_bazowa * t) # tworzenie dzwieku poprzez polaczenie dwoch sinusiod
     szum = np.random.normal(0, 0.05, len(t)) # dodanie szumu o rozkladzie normalnym
     return generuj_audio_id(fala + szum)
-
